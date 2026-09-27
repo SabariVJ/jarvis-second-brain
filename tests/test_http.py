@@ -129,3 +129,15 @@ class HTTPTests(unittest.TestCase):
         body={'draft_id':'d1','confirmation':'SEND d1'}
         self.assertEqual(json.loads(self.request('/api/gmail/send',body)[1])['id'],'sent1')
         server.RUNTIME.gmail.send_draft.assert_called_once_with('d1','SEND d1')
+
+    def test_calendar_read_and_confirmed_write_routes(self):
+        from unittest.mock import Mock
+        server.RUNTIME.calendar=Mock()
+        server.RUNTIME.calendar.status.return_value={'state':'NOT CONNECTED','connected':False}
+        server.RUNTIME.calendar.today.return_value={'items':[]}
+        server.RUNTIME.calendar.create.return_value={'confirmed':True,'id':'e1'}
+        self.assertEqual(json.loads(self.request('/api/integrations/calendar')[1])['state'],'NOT CONNECTED')
+        self.assertEqual(json.loads(self.request('/api/calendar/today',{})[1]),{'items':[]})
+        body={'summary':'Review','start':'2026-09-27T10:00:00Z','end':'2026-09-27T11:00:00Z','confirmation':'CREATE Review'}
+        self.assertTrue(json.loads(self.request('/api/calendar/create',body)[1])['confirmed'])
+        server.RUNTIME.calendar.create.assert_called_once_with('Review',body['start'],body['end'],'CREATE Review','')

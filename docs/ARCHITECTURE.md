@@ -143,6 +143,8 @@ Original APIs are preserved; GET /api/state was added. New endpoints:
 | POST | /api/focus/{start,pause,resume,stop} | Explicit local session controls |
 | GET | /api/integrations/gmail | Local OAuth configuration status, no token values |
 | POST | /api/gmail/{list,thread,summarize,draft,reply-draft,send} | On-demand Gmail operations; send requires a separate exact confirmation |
+| GET | /api/integrations/calendar | Local OAuth configuration status, no token values |
+| POST | /api/calendar/{today,tomorrow,events,search,availability,create,reschedule,cancel} | On-demand Calendar queries and writes with explicit confirmation |
 | GET | /api/memory/status | Counts and extraction errors |
 | POST | /api/memory/reindex | Scan configured root only |
 | POST | /api/memory/embed | Build explicitly enabled cloud vectors |
@@ -194,3 +196,14 @@ untrusted input. Draft and reply-draft operations create provider-side drafts;
 send additionally checks the exact `SEND <draft-id>` phrase server-side after a
 browser confirmation. The default disconnected state is explicit. See
 `SETUP.md` for local OAuth setup; automated integration coverage uses mocks.
+
+## Phase 17: Google Calendar
+
+The Calendar adapter reuses the local Google refresh-token client. Reads are
+bounded by the requested date range and page limit. Free/busy uses the primary
+calendar. Create, reschedule and cancel require both a browser confirmation and
+an exact action phrase checked at the adapter boundary. Creation and rescheduling
+are treated as complete only when Google's response contains the expected event
+ID; cancellation is reported only after the delete request succeeds. Calendar
+items remain in Google and are not persisted into the second brain. See
+`SETUP.md` for the narrow OAuth scopes and local configuration.

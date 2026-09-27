@@ -13,6 +13,7 @@ from jarvis.research import WebResearch
 from jarvis.ai.vision import Vision
 from jarvis.focus import FocusLock
 from jarvis.integrations.gmail import GmailAdapter
+from jarvis.integrations.calendar import CalendarAdapter
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -29,6 +30,7 @@ class Runtime:
         self.vision = Vision(model=self.brain.model)
         self.focus = FocusLock(Path(os.environ.get('JARVIS_DATA_DIR', str(Path(root)/'data'))) / 'focus.json')
         self.gmail = GmailAdapter()
+        self.calendar = CalendarAdapter()
         self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research)
 
     def health(self):
@@ -42,6 +44,7 @@ class Runtime:
         if method == 'GET' and path == '/api/focus':
             return self.focus.status()
         if method == 'GET' and path == '/api/integrations/gmail': return self.gmail.status()
+        if method == 'GET' and path == '/api/integrations/calendar': return self.calendar.status()
         if method == 'POST' and path == '/api/gmail/list':
             return self.gmail.list_messages(data.get('mode','inbox'),data.get('query',''),data.get('limit',20))
         if method == 'POST' and path == '/api/gmail/thread': return self.gmail.thread(data.get('thread_id'))
@@ -52,6 +55,22 @@ class Runtime:
             return self.gmail.reply_draft(data.get('thread_id'),data.get('body'))
         if method == 'POST' and path == '/api/gmail/send':
             return self.gmail.send_draft(data.get('draft_id'),data.get('confirmation'))
+        if method == 'POST' and path == '/api/calendar/today': return self.calendar.today()
+        if method == 'POST' and path == '/api/calendar/tomorrow': return self.calendar.tomorrow()
+        if method == 'POST' and path == '/api/calendar/events':
+            return self.calendar.events(data.get('start'),data.get('end'),data.get('query',''),data.get('limit',100))
+        if method == 'POST' and path == '/api/calendar/range':
+            return self.calendar.events(data.get('start'),data.get('end'),data.get('query',''),data.get('limit',100))
+        if method == 'POST' and path == '/api/calendar/search':
+            return self.calendar.events(data.get('start'),data.get('end'),data.get('query',''),data.get('limit',100))
+        if method == 'POST' and path == '/api/calendar/availability':
+            return self.calendar.availability(data.get('start'),data.get('end'))
+        if method == 'POST' and path == '/api/calendar/create':
+            return self.calendar.create(data.get('summary'),data.get('start'),data.get('end'),data.get('confirmation'),data.get('description',''))
+        if method == 'POST' and path == '/api/calendar/reschedule':
+            return self.calendar.reschedule(data.get('event_id'),data.get('start'),data.get('end'),data.get('confirmation'))
+        if method == 'POST' and path == '/api/calendar/cancel':
+            return self.calendar.cancel(data.get('event_id'),data.get('confirmation'))
         if method == 'POST' and path == '/api/focus/start':
             return self.focus.start(data.get('minutes',90),data.get('goal','Focus session'),data.get('allowed_apps'),data.get('distractions'))
         if method == 'POST' and path == '/api/focus/pause': return self.focus.pause()

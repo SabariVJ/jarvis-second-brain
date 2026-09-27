@@ -30,6 +30,16 @@ async function boot(){
         <label class="sub">Distracting app or site titles<input id="focus-distracting" value="instagram, tiktok, youtube, reddit"></label>
         <div class="j-row"><button id="focus-start">Start</button><button id="focus-pause">Pause</button><button id="focus-resume">Resume</button><button id="focus-stop">Stop</button></div>
       </section>
+      <section id="calendar-card" aria-label="Google Calendar">
+        <h3>GOOGLE CALENDAR <span id="calendar-state" class="sub">CHECKING</span><button id="calendar-refresh" aria-label="Refresh Calendar connection">Refresh</button></h3>
+        <div class="j-row"><button id="calendar-today" disabled>Today</button><button id="calendar-tomorrow" disabled>Tomorrow</button><button id="calendar-availability" disabled>Check availability</button></div>
+        <div class="focus-fields"><label class="sub">From<input id="calendar-start" type="datetime-local"></label><label class="sub">To<input id="calendar-end" type="datetime-local"></label></div>
+        <div class="j-row"><input id="calendar-query" maxlength="300" placeholder="Search events"><button id="calendar-search" disabled>Search</button></div>
+        <div id="calendar-results" role="list"></div>
+        <div class="focus-fields"><label class="sub">New event<input id="calendar-summary" maxlength="300" placeholder="Event title"></label><label class="sub">Description<input id="calendar-description" maxlength="5000"></label></div>
+        <div class="j-row"><button id="calendar-create" disabled>Create event</button><button id="calendar-reschedule" disabled>Reschedule selected</button><button id="calendar-cancel" disabled>Cancel selected</button></div>
+        <small id="calendar-action-state" class="sub" role="status" aria-live="polite"></small>
+      </section>
       <section id="gmail-card" aria-label="Gmail">
         <h3>GMAIL <span id="gmail-state" class="sub">CHECKING</span><button id="gmail-refresh" aria-label="Refresh Gmail connection">Refresh</button></h3>
         <div class="j-row"><button id="gmail-inbox" disabled>Inbox</button><button id="gmail-unread" disabled>Unread</button><button id="gmail-new-draft" disabled>New draft</button></div>
@@ -287,6 +297,47 @@ async function boot(){
     try{await api('/api/gmail/send',{draft_id:currentGmailDraft,confirmation:'SEND '+currentGmailDraft});
       $('gmail-draft-state').textContent='Gmail confirmed the message was sent.';$('gmail-send').hidden=true;currentGmailDraft=null}
     catch(e){entry(e.message||'Gmail did not confirm sending.','assistant')}};
+  let calendarConnected=false,selectedCalendarEvent=null;
+  function setCalendarConnected(connected,state){calendarConnected=Boolean(connected);$('calendar-state').textContent=state||(calendarConnected?'CONFIGURED':'NOT CONNECTED');
+    for(const id of ['calendar-today','calendar-tomorrow','calendar-availability','calendar-search','calendar-create'])$(id).disabled=!calendarConnected}
+  async function checkCalendar(){try{const state=await api('/api/integrations/calendar');setCalendarConnected(state.connected,state.state)}catch(_){setCalendarConnected(false,'NOT CONNECTED')}}
+  function calendarRange(){const start=new Date($('calendar-start').value),end=new Date($('calendar-end').value);
+    if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime())||end<=start)throw new Error('Choose a valid Calendar time range.');
+    return {start:start.toISOString(),end:end.toISOString()}}
+  function drawCalendarEvents(items){$('calendar-results').replaceChildren();selectedCalendarEvent=null;$('calendar-reschedule').disabled=true;$('calendar-cancel').disabled=true;
+    for(const event of items){const card=document.createElement('article'),title=document.createElement('strong'),time=document.createElement('small'),select=document.createElement('button');
+      card.className='calendar-item';card.setAttribute('role','listitem');title.textContent=event.summary;time.textContent=`${event.start} – ${event.end}`;select.textContent='Select';
+      select.onclick=()=>{selectedCalendarEvent=event;for(const node of $('calendar-results').querySelectorAll('article'))node.dataset.selected='false';card.dataset.selected='true';
+        $('calendar-reschedule').disabled=!calendarConnected;$('calendar-cancel').disabled=!calendarConnected};card.append(title,time,select);$('calendar-results').append(card)}
+    if(!items.length)$('calendar-results').textContent='No Calendar events in this range.'}
+  async function calendarList(path,payload={}){if(!calendarConnected)return;try{const result=await api(path,payload);drawCalendarEvents(result.items||[]);return result}
+    catch(e){$('calendar-action-state').textContent=e.message||'Calendar request failed.';throw e}}
+  async function calendarAvailability(){if(!calendarConnected)return;try{const result=await api('/api/calendar/availability',calendarRange());
+    $('calendar-action-state').textContent=result.errors?.length?'Calendar availability returned an error.':result.busy?.length?`${result.busy.length} busy period(s) found.`:'Calendar shows this period as free.'}
+    catch(e){$('calendar-action-state').textContent=e.message||'Calendar availability failed.'}}
+  async function calendarMutate(path,payload,phrase,verb){if(!calendarConnected)return;
+    if(!window.confirm(`${verb}\n\n${phrase}\n\nContinue?`))return;
+    try{const result=await api(path,{...payload,confirmation:phrase});
+      if(!result.confirmed)throw new Error('Calendar did not confirm this change.');
+      $('calendar-action-state').textContent=`Calendar confirmed: ${verb}`;
+      try{const range=calendarRange();await calendarList('/api/calendar/events',range)}
+      catch(_){$('calendar-action-state').textContent=`Calendar confirmed: ${verb}. Refresh the event list to verify.`}}
+    catch(e){$('calendar-action-state').textContent=e.message||'Calendar change failed.'}}
+  const currentDay=new Date();currentDay.setSeconds(0,0);const dayEnd=new Date(currentDay.getTime()+60*60*1000);
+  const asLocalInput=date=>{const offset=date.getTimezoneOffset()*60000;return new Date(date.getTime()-offset).toISOString().slice(0,16)};
+  $('calendar-start').value=asLocalInput(currentDay);$('calendar-end').value=asLocalInput(dayEnd);
+  await checkCalendar();$('calendar-refresh').onclick=()=>checkCalendar();
+  $('calendar-today').onclick=async()=>{if(calendarConnected){const result=await api('/api/calendar/today',{});drawCalendarEvents(result.items||[])}};
+  $('calendar-tomorrow').onclick=async()=>{if(calendarConnected){const result=await api('/api/calendar/tomorrow',{});drawCalendarEvents(result.items||[])}};
+  $('calendar-search').onclick=()=>{try{calendarList('/api/calendar/search',{...calendarRange(),query:$('calendar-query').value.trim()})}catch(e){$('calendar-action-state').textContent=e.message}};
+  $('calendar-availability').onclick=()=>calendarAvailability();
+  $('calendar-create').onclick=()=>{try{const range=calendarRange(),summary=$('calendar-summary').value.trim();
+    if(!summary)throw new Error('Enter an event title.');calendarMutate('/api/calendar/create',{...range,summary,description:$('calendar-description').value},'CREATE '+summary,'Create “'+summary+'”?')}
+    catch(e){$('calendar-action-state').textContent=e.message}};
+  $('calendar-reschedule').onclick=()=>{if(!selectedCalendarEvent)return;try{const range=calendarRange();calendarMutate('/api/calendar/reschedule',{...range,event_id:selectedCalendarEvent.id},
+    'RESCHEDULE '+selectedCalendarEvent.id,'Reschedule “'+selectedCalendarEvent.summary+'”?')}catch(e){$('calendar-action-state').textContent=e.message}};
+  $('calendar-cancel').onclick=()=>{if(selectedCalendarEvent)calendarMutate('/api/calendar/cancel',{event_id:selectedCalendarEvent.id},
+    'CANCEL '+selectedCalendarEvent.id,'Cancel “'+selectedCalendarEvent.summary+'”?')};
   $('j-summary').onclick=()=>ask('Summarize this').catch(showError);
   $('j-index').onclick=async()=>{try{status('INDEXING');await api('/api/memory/reindex',{});await refresh();status('IDLE')}catch(e){showError(e)}};
   $('j-embed').onclick=async()=>{try{status('EMBEDDING · SENDING NOTE CHUNKS TO OPENAI');await api('/api/memory/embed',{});await refresh();status('IDLE')}catch(e){showError(e)}};

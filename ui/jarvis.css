@@ -20,6 +20,11 @@
 #gmail-thread{max-height:180px;overflow:auto;white-space:pre-wrap}
 #gmail-thread pre,#gmail-compose textarea{white-space:pre-wrap;overflow-wrap:anywhere;background:#07100e;color:#e3ffee;border:1px solid #446255;border-radius:8px;padding:8px;font:12px/1.5 'Segoe UI',sans-serif;width:100%;resize:vertical}
 #gmail-compose[hidden]{display:none}
+#calendar-card{border:1px solid #685c87;border-radius:12px;background:#12101a;padding:10px;display:flex;flex-direction:column;gap:7px}
+#calendar-card h3{font:11px ui-monospace,monospace;letter-spacing:.1em;color:#d1b6ff}
+#calendar-results{display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto}
+.calendar-item{display:grid;grid-template-columns:1fr auto;gap:4px;border:1px solid #49405f;border-radius:8px;padding:8px;background:#100d16}
+.calendar-item strong{grid-column:1/-1}.calendar-item small{color:#b6a9c9;overflow-wrap:anywhere}.calendar-item[data-selected=true]{border-color:#c8a8ff}
 #focus-status{font:10px ui-monospace,monospace;color:#e4c47f}
 .focus-fields{display:grid;grid-template-columns:90px 1fr;gap:6px}
 .focus-fields input{padding:7px!important}

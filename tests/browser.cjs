@@ -9,6 +9,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     const page=await browser.newPage({viewport:{width:1440,height:1000}});
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     let gmailAuth={state:'NOT CONNECTED',connected:false},gmailCalls=[];
+    let calendarAuth={state:'NOT CONNECTED',connected:false},calendarCalls=[];
     let focusState={state:'IDLE',monitor_supported:true,warning:null},focusCalls=[];
     const focusRoute=async route=>{
       const url=new URL(route.request().url()),action=url.pathname.split('/').pop();
@@ -21,6 +22,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     };
     await page.route('**/api/focus',focusRoute);await page.route('**/api/focus/**',focusRoute);
     await page.route('**/api/integrations/gmail',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(gmailAuth)}));
+    await page.route('**/api/integrations/calendar',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(calendarAuth)}));
     await page.addInitScript(()=>{
       // Test voice transcript transport without a microphone or an online STT service.
       window.SpeechRecognition=class {
@@ -64,6 +66,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.goto(base+'/');await page.waitForFunction(()=>!!window.jarvisUI);
     assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
     assert.equal(await page.locator('#gmail-state').innerText(),'NOT CONNECTED');assert.equal(await page.locator('#gmail-inbox').isDisabled(),true);
+    assert.equal(await page.locator('#calendar-state').innerText(),'NOT CONNECTED');assert.equal(await page.locator('#calendar-create').isDisabled(),true);
     await page.locator('#j-input').fill('Find my galaxy notes');await page.locator('#j-send').click();
     await page.waitForFunction(()=>document.querySelectorAll('.j-sources button').length>0);
     await page.waitForFunction(()=>!document.querySelector('#j-send').disabled);
@@ -203,6 +206,30 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.locator('#gmail-subject').fill('Follow up');await page.locator('#gmail-body').fill('Here is the update.');
     await page.locator('#gmail-create-draft').click();await page.waitForFunction(()=>document.querySelector('#gmail-draft-state').textContent.includes('Draft saved'));
     assert.equal(gmailCalls.at(-1).path,'/api/gmail/draft');
+    calendarAuth={state:'CONFIGURED',connected:true};await page.locator('#calendar-refresh').click();
+    await page.waitForFunction(()=>document.querySelector('#calendar-state').textContent==='CONFIGURED'&&!document.querySelector('#calendar-create').disabled);
+    const event={id:'event1',summary:'Planning',start:'2026-09-27T10:00:00+05:30',end:'2026-09-27T11:00:00+05:30',status:'confirmed'};
+    await page.route('**/api/calendar/**',async route=>{const path=new URL(route.request().url()).pathname,body=route.request().method()==='POST'?route.request().postDataJSON():{};calendarCalls.push({path,body});
+      const result=path.endsWith('/availability')?{busy:[{start:event.start,end:event.end}],errors:[]}:
+        path.endsWith('/create')?{confirmed:true,id:'event-new',summary:body.summary,start:body.start,end:body.end}:
+        path.endsWith('/reschedule')?{confirmed:true,...event,start:body.start,end:body.end}:
+        path.endsWith('/cancel')?{confirmed:true,id:body.event_id,status:'cancelled'}:{items:[event]};
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(result)})});
+    await page.locator('#calendar-today').click();await page.locator('#calendar-tomorrow').click();
+    await page.locator('#calendar-query').fill('Planning');await page.locator('#calendar-search').click();await page.waitForFunction(()=>document.querySelector('.calendar-item'));
+    assert.ok(calendarCalls.some(c=>c.path==='/api/calendar/today'));assert.ok(calendarCalls.some(c=>c.path==='/api/calendar/tomorrow'));
+    await page.locator('#calendar-availability').click();await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('busy period'));
+    await page.locator('#calendar-summary').fill('Review');await page.evaluate(()=>window.confirmAnswer=false);await page.locator('#calendar-create').click();
+    assert.equal(calendarCalls.some(c=>c.path==='/api/calendar/create'),false,'Canceling event confirmation must not write');
+    await page.evaluate(()=>window.confirmAnswer=true);await page.locator('#calendar-create').click();
+    await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('Calendar confirmed'));
+    assert.equal(calendarCalls.find(c=>c.path==='/api/calendar/create').body.confirmation,'CREATE Review');
+    await page.getByRole('button',{name:'Select',exact:true}).click();await page.locator('#calendar-reschedule').click();
+    await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('Calendar confirmed: Reschedule'));
+    assert.equal(calendarCalls.find(c=>c.path==='/api/calendar/reschedule').body.confirmation,'RESCHEDULE event1');
+    await page.getByRole('button',{name:'Select',exact:true}).click();await page.locator('#calendar-cancel').click();
+    await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('Calendar confirmed: Cancel'));
+    assert.equal(calendarCalls.find(c=>c.path==='/api/calendar/cancel').body.confirmation,'CANCEL event1');
     let speechAnswer='This sentence contains the word stop as echo bait.';
     await page.route('**/api/jarvis/chat',async route=>{
       const body=route.request().postDataJSON();

@@ -154,9 +154,14 @@ To connect it locally:
 1. In Google Cloud, create/select a project, enable the Gmail API, configure its
    OAuth consent screen, and create an OAuth client for a local installed or web
    application. Request only `https://www.googleapis.com/auth/gmail.readonly`,
-   `https://www.googleapis.com/auth/gmail.compose`, and
-   `https://www.googleapis.com/auth/gmail.send`. Google may require consent-screen
-   verification or test-user approval for these scopes.
+   `https://www.googleapis.com/auth/gmail.compose`,
+   `https://www.googleapis.com/auth/gmail.send`,
+   `https://www.googleapis.com/auth/calendar.events.readonly`,
+   `https://www.googleapis.com/auth/calendar.events.freebusy`, and
+   `https://www.googleapis.com/auth/calendar.events`. Google may require
+   consent-screen verification or test-user approval for these scopes. See the
+   [Gmail scope list](https://developers.google.com/workspace/gmail/api/auth/scopes)
+   and [Calendar scope list](https://developers.google.com/identity/protocols/oauth2/scopes).
 2. Use Google's OAuth flow outside chat with offline access to obtain a refresh
    token for the intended account and these scopes. Keep the client secret and
    refresh token private; never paste them into chat or commit them.
@@ -165,7 +170,17 @@ To connect it locally:
    `launch.cmd` and press Refresh in the Gmail card. Credentials are read from
    the process environment; Jarvis does not provide a credential-entry page.
 
-Without those local values, Gmail remains disconnected and its controls stay
-disabled. Automated tests use a mocked Google token endpoint and mocked Gmail
-API; they do not send real email. Calendar is the next integration phase.
-Telegram and outbound messaging beyond confirmed Gmail drafts remain unimplemented.
+Without those local values, Gmail and Calendar remain disconnected and their
+controls stay disabled. Automated tests use a mocked Google token endpoint and
+mocked provider APIs; they do not send real email or modify events.
+
+## Google Calendar (Phase 17)
+
+The Calendar card reads today, tomorrow, a selected time range, event search, and
+free/busy information on demand. Create, reschedule and cancel each show a browser
+confirmation, then the server checks the exact action phrase. Jarvis reports a
+change as complete only after Google confirms it. Events remain in Google and are
+not copied into the local second brain. The three Calendar scopes above are the
+least-privilege scopes used for these read, availability and event operations.
+
+Telegram and other outbound messaging remain unimplemented.
