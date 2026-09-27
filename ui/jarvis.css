@@ -29,6 +29,8 @@
 #gmail-thread pre,#gmail-compose textarea{white-space:pre-wrap;overflow-wrap:anywhere;background:#07100e;color:#e3ffee;border:1px solid #446255;border-radius:8px;padding:8px;font:12px/1.5 'Segoe UI',sans-serif;width:100%;resize:vertical}
 #gmail-compose[hidden]{display:none}
 #calendar-card{border:1px solid #685c87;border-radius:12px;background:#12101a;padding:10px;display:flex;flex-direction:column;gap:7px}
+#telegram-card{border:1px solid #4d6d87;border-radius:12px;background:#0b141b;padding:10px;display:flex;flex-direction:column;gap:7px}
+#telegram-card h3{font:11px ui-monospace,monospace;letter-spacing:.1em;color:#acd7ff}
 #calendar-card h3{font:11px ui-monospace,monospace;letter-spacing:.1em;color:#d1b6ff}
 #calendar-results{display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto}
 .calendar-item{display:grid;grid-template-columns:1fr auto;gap:4px;border:1px solid #49405f;border-radius:8px;padding:8px;background:#100d16}

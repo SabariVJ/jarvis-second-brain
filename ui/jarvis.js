@@ -63,6 +63,12 @@ async function boot(){
           <div class="j-row"><button id="gmail-create-draft" disabled>Save draft</button><button id="gmail-send" hidden>Send draft…</button></div>
           <small id="gmail-draft-state" class="sub"></small></div>
       </section>
+      <section id="telegram-card" aria-label="Telegram remote Jarvis">
+        <h3>TELEGRAM REMOTE JARVIS <span id="telegram-state" class="sub">CHECKING</span></h3>
+        <div class="sub">Opt-in polling. Only private messages from locally allowlisted user IDs are processed. Voice notes require local transcription setup. File sharing will require local approval and a second confirmation in Telegram.</div>
+        <div class="j-row"><button id="telegram-start" type="button" disabled>Start remote Jarvis</button><button id="telegram-stop" type="button" disabled>Stop remote Jarvis</button><button id="telegram-refresh" type="button">Refresh status</button></div>
+        <small id="telegram-detail" class="sub" role="status" aria-live="polite"></small>
+      </section>
       <div class="j-row"><button id="j-index">Reindex notes</button><button id="j-embed" hidden>Build semantic index</button><span class="sub" id="j-count"></span></div>
     </aside>
     <section id="research-cards" aria-label="Temporary research cards"></section>
@@ -207,6 +213,17 @@ async function boot(){
     try{const saved=await api('/api/personal-memory/remember',{content,source_type:'user_explicit'});$('personal-memory-content').value='';entry('Saved personal memory · '+saved.category+' · '+saved.source_reference);await loadPersonalMemories()}
     catch(error){showError(error)}};
   await loadPersonalMemories();
+  async function refreshTelegram(){const state=await api('/api/integrations/telegram');
+    $('telegram-state').textContent=state.state;
+    $('telegram-detail').textContent=`${state.allowed_user_count} allowed user(s) · voice notes ${state.voice_notes} · ${state.sharing.toLowerCase()}`;
+    $('telegram-start').disabled=!state.enabled||!state.configured||state.running;
+    $('telegram-stop').disabled=!state.running;
+    $('telegram-start').textContent=state.configured?'Start remote Jarvis':'Configure locally to enable';
+  }
+  $('telegram-refresh').onclick=()=>refreshTelegram().catch(showError);
+  $('telegram-start').onclick=async()=>{try{await api('/api/telegram/start',{});await refreshTelegram()}catch(error){$('telegram-state').textContent='NOT CONNECTED';$('telegram-detail').textContent=error.message}};
+  $('telegram-stop').onclick=async()=>{try{await api('/api/telegram/stop',{});await refreshTelegram()}catch(error){showError(error)}};
+  await refreshTelegram();
   try{for(const card of (await api('/api/research/cards?session_id='+encodeURIComponent(sid))).cards)researchCard(card)}catch(e){showError(e)}
   $('brain-toggle').onclick=()=>{$('galaxy').hidden=!$('galaxy').hidden;$('brain-toggle').setAttribute('aria-expanded',String(!$('galaxy').hidden))};
   async function stopSpeech(interrupted=false){speechToken++;clearTimeout(speechEndTimer);speechEndTimer=null;

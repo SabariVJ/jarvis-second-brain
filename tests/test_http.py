@@ -163,3 +163,16 @@ class HTTPTests(unittest.TestCase):
         result=json.loads(self.request('/api/briefing/morning',{})[1])
         self.assertFalse(result['scheduling']['auto_at_startup'])
         server.RUNTIME.briefing.run.assert_called_once_with()
+
+    def test_telegram_stays_disabled_until_explicitly_configured_and_started(self):
+        from unittest.mock import Mock
+        server.RUNTIME.telegram=Mock()
+        server.RUNTIME.telegram.status.return_value={'state':'DISABLED','enabled':False,'configured':False}
+        server.RUNTIME.telegram.start.return_value={'state':'CONNECTED','running':True}
+        server.RUNTIME.telegram.stop.return_value={'state':'STOPPING','running':True}
+        self.assertEqual(json.loads(self.request('/api/integrations/telegram')[1])['state'],'DISABLED')
+        self.assertEqual(self.request('/api/telegram/start')[0],404)
+        self.assertEqual(json.loads(self.request('/api/telegram/start',{})[1])['state'],'CONNECTED')
+        self.assertEqual(json.loads(self.request('/api/telegram/stop',{})[1])['state'],'STOPPING')
+        server.RUNTIME.telegram.start.assert_called_once_with()
+        server.RUNTIME.telegram.stop.assert_called_once_with()

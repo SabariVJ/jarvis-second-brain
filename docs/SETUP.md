@@ -190,8 +190,6 @@ target. Gmail and Calendar may remain disconnected; local items still appear.
 Read-aloud remains governed by the existing opt-in voice checkbox. There is no
 startup speech or background schedule.
 
-Telegram and other outbound messaging remain unimplemented.
-
 ## Personal long-term memory (Phase 19)
 
 Personal Memory is local to the Jarvis data directory. Use “remember that …”
@@ -201,3 +199,21 @@ first-person facts and preferences; it does not save every conversation,
 research result, email, calendar item, or screen. Secret-like values are
 rejected. Saved facts can be surfaced in answers as personal memory, separate
 from indexed notes. No extra credentials are required.
+
+## Telegram Remote Jarvis (Phase 20)
+
+Telegram is off until configured and started from the local UI. Create a bot
+using Telegram's official BotFather flow, then set `TELEGRAM_BOT_TOKEN`,
+`TELEGRAM_ALLOWED_USER_IDS` (comma-separated numeric account IDs), and
+`JARVIS_TELEGRAM_ENABLED=1` in the local process environment. Restart Jarvis,
+review the allowed-user count, then press **Start remote Jarvis**. Only private
+messages from allowlisted IDs are handled. Press **Stop remote Jarvis** to end
+polling. The token is never shown in the UI or returned by the status route.
+Do not put bot tokens in chat, source files, notes, or screenshots.
+
+Voice notes are downloaded in memory, capped at 10 MB, transcribed only when a
+local OpenAI key is configured, and discarded after the reply. Telegram does
+not access the H.O.L.O camera or activate browser microphone listening. File
+sharing is limited to Jarvis generated artifacts and requires a local approval
+plus an exact `SHARE <document-id>` reply in Telegram (the artifact registry is
+completed in Phase 21).

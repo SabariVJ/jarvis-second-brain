@@ -31,6 +31,18 @@ Credential-like values are rejected. Expiration, importance, confidence,
 last-used time and update provenance are stored. The local Personal Memory
 panel uses text-only rendering and never treats a memory as system instruction.
 
+## Telegram Remote Jarvis (Phase 20)
+
+Telegram long polling is disabled by default and starts only from a local UI
+action after local environment configuration. The adapter validates private
+chat type and sender ID allowlisting before reading a message body or requesting
+a voice file. Voice files are bounded, kept in memory, passed to the configured
+transcription provider, and discarded. Telegram chat reuses the Jarvis
+orchestrator while suppressing automatic personal-memory capture; explicit
+remember commands retain Telegram provenance. Bot tokens never enter status data.
+Generated file sharing requires a later local artifact registry and a separate
+in-chat confirmation; arbitrary paths are not accepted.
+
 ## Runtime and trust
 
 The app binds only 127.0.0.1. Host and Origin checks reject DNS rebinding/cross-site

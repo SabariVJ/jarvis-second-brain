@@ -1,5 +1,5 @@
 """Application lifetime owner, created once by server.main()."""
-from .context import Sessions
+from .context import Context, Sessions
 from pathlib import Path
 import os
 from jarvis.memory.database import Database
@@ -16,6 +16,9 @@ from jarvis.integrations.gmail import GmailAdapter
 from jarvis.integrations.calendar import CalendarAdapter
 from jarvis.briefing import MorningBriefing
 from jarvis.memory.long_term import LongTermMemory
+from jarvis.integrations.telegram import TelegramAdapter
+from .state import StateMachine
+from io import BytesIO
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -36,6 +39,9 @@ class Runtime:
         self.briefing = MorningBriefing(self.database,self.gmail,self.calendar,self.focus)
         self.long_term_memory=LongTermMemory(self.database)
         self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research,self.long_term_memory)
+        self._telegram_sessions={}
+        transcriber=self._transcribe_telegram_voice if self.brain.enabled else None
+        self.telegram=TelegramAdapter(on_text=self._telegram_chat,transcriber=transcriber)
 
     def health(self):
         return {'ok': True, 'service': 'Jarvis', 'camera_required': False,
@@ -49,6 +55,9 @@ class Runtime:
             return self.focus.status()
         if method == 'GET' and path == '/api/integrations/gmail': return self.gmail.status()
         if method == 'GET' and path == '/api/integrations/calendar': return self.calendar.status()
+        if method == 'GET' and path == '/api/integrations/telegram': return self.telegram.status()
+        if method == 'POST' and path == '/api/telegram/start': return self.telegram.start()
+        if method == 'POST' and path == '/api/telegram/stop': return self.telegram.stop()
         if method == 'POST' and path == '/api/briefing/morning': return self.briefing.run()
         if method == 'GET' and path == '/api/personal-memory':
             memory_id=query.get('id',[''])[0]
@@ -158,3 +167,17 @@ class Runtime:
             state.transition(target)
             return state.snapshot()
         return None
+
+    def _telegram_chat(self,sender_id,message):
+        if sender_id not in self.telegram.allowed_user_ids:raise ValueError('Sender is not allowlisted')
+        session=self._telegram_sessions.get(sender_id)
+        if session is None:
+            session=(Context(),StateMachine());self._telegram_sessions[sender_id]=session
+        context,state=session
+        return self.orchestrator.chat(message,context,state,capture_memories=False,origin='telegram')
+
+    def _transcribe_telegram_voice(self,audio,filename):
+        if not self.brain.enabled:raise ValueError('Voice transcription is not connected')
+        response=self.brain.client.audio.transcriptions.create(model=os.environ.get('JARVIS_TELEGRAM_TRANSCRIBE_MODEL','gpt-4o-mini-transcribe'),
+            file=(filename,BytesIO(audio),'audio/ogg'))
+        return getattr(response,'text','')

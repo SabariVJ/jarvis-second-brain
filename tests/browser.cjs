@@ -23,6 +23,8 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(focusState)});
     };
     await page.route('**/api/focus',focusRoute);await page.route('**/api/focus/**',focusRoute);
+    await page.route('**/api/integrations/telegram',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+      state:'DISABLED',enabled:false,configured:false,running:false,allowed_user_count:0,voice_notes:'NOT CONNECTED',sharing:'LOCAL APPROVAL REQUIRED'})}));
     await page.route('**/api/personal-memory**',async route=>{
       const url=new URL(route.request().url()),method=route.request().method(),body=method==='POST'?route.request().postDataJSON():{};
       memoryCalls.push({method,path:url.pathname,body});
@@ -87,6 +89,8 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.waitForFunction(()=>window.__holo.gl());
     await page.waitForFunction(()=>window.__holo.hands.some(h=>h.present));
     await page.goto(base+'/');await page.waitForFunction(()=>!!window.jarvisUI);
+    assert.equal(await page.locator('#telegram-state').innerText(),'DISABLED');assert.equal(await page.locator('#telegram-start').isDisabled(),true);
+    assert.equal((await page.locator('#telegram-detail').innerText()).includes('token'),false);
     await page.waitForFunction(()=>document.querySelector('#personal-memory-results').textContent.includes('No saved personal memories'));
     await page.locator('#personal-memory-content').fill('<img src=x onerror=alert(1)>');await page.locator('#personal-memory-form button').click();
     await page.waitForFunction(()=>document.querySelector('.personal-memory-item'));
@@ -98,7 +102,9 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.waitForFunction(()=>document.querySelector('.personal-memory-item p').textContent.includes('Provenance: user_explicit'));
     page.once('dialog',dialog=>dialog.accept('I prefer safe text rendering.'));
     await page.locator('.personal-memory-item button').nth(1).click();
-    await page.waitForFunction(()=>memoryCalls.some(x=>x.path.endsWith('/update')));
+    assert.ok(memoryCalls.some(x=>x.path.endsWith('/update')));
+    await page.locator('#personal-memory-query').fill('');await page.locator('#personal-memory-search').click();
+    await page.waitForFunction(()=>document.querySelector('.personal-memory-item p')?.textContent==='I prefer safe text rendering.');
     page.once('dialog',dialog=>dialog.accept());await page.locator('.personal-memory-item button').nth(2).click();
     await page.waitForFunction(()=>document.querySelector('#personal-memory-results').textContent.includes('No saved personal memories'));
     assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
