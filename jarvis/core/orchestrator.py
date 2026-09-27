@@ -1,14 +1,18 @@
 """Grounded request orchestration shared by text and voice transcripts."""
 import re
+import secrets
 from jarvis.ai.astra import local_summary
 from jarvis.tools import Registry, Tool
 
 class Orchestrator:
-    def __init__(self, database, retrieval, graph, brain):
+    def __init__(self, database, retrieval, graph, brain, research=None):
         self.database, self.retrieval, self.graph, self.brain = database,retrieval,graph,brain
+        self.research = research
         self.tools = Registry()
         self.tools.register(Tool('search_memory',0,{'query':str},retrieval.search))
         self.tools.register(Tool('read_document',0,{'doc_id':str},database.document))
+        if research:
+            self.tools.register(Tool('web_research',0,{'query':str},research.run))
 
     def chat(self, message, context, state, selected_id=None, spoken=False):
         if not isinstance(message,str) or not message.strip() or len(message)>4000:
@@ -18,11 +22,38 @@ class Orchestrator:
             if state.state.value not in ('IDLE','OFFLINE','ERROR','INTERRUPTED'):
                 state.transition('INTERRUPTED'); state.transition('IDLE')
             state.transition('RETRIEVING')
+            q = re.sub(r'^\s*jarvis[,\s]*','',message.strip(), flags=re.I).lower()
+            research_match = re.match(r'^(?:research|search (?:the )?web(?: for)?|look up (?:the latest )?information (?:on|about))\s+(.+)$',q)
+            if research_match:
+                query = research_match.group(1).strip()
+                if not self.research or not self.research.enabled:
+                    state.transition('THINKING')
+                    state.transition('OFFLINE')
+                    return self._finish('Live research needs an OpenAI API key. Your local notes are still available.',[],[],state,'research_unavailable',None)
+                state.transition('TOOL_RUNNING')
+                try:
+                    data = self.tools.execute('web_research',{'query':query})['result']
+                except Exception:
+                    state.transition('THINKING')
+                    state.transition('OFFLINE')
+                    return self._finish('Live research failed or had no verifiable citations. Please try again later.',[],[],state,'research_unavailable',None)
+                state.transition('THINKING')
+                card = {'id':secrets.token_urlsafe(18),'query':query,'status':'temporary',**data}
+                if len(context.research_cards) >= 20:
+                    oldest = next((key for key,c in context.research_cards.items() if c['status']=='temporary'),None)
+                    if oldest: del context.research_cards[oldest]
+                    else:
+                        return self._finish('Your research cards are full. Dismiss one before searching again.',[],[],state,'research_limit',None)
+                context.research_cards[card['id']] = card
+                context.history.extend([{'role':'user','text':message},{'role':'assistant','text':data['answer']}])
+                context.history[:] = context.history[-6:]
+                result = self._finish(data['answer'],[],[],state,'research',data['warning'])
+                result['research_card']=card
+                return result
             if selected_id:
                 self.database.document(selected_id)  # validate identity, never trust title/body from browser
                 context.select(selected_id)
             selected = context.selection()
-            q = re.sub(r'^\s*jarvis[,\s]*','',message.strip(), flags=re.I).lower()
             summary = bool(re.search(r'\b(summarize|summarise|summary|explain)\b',q))
             followup = bool(re.search(r'\b(this|it|that)\b',q)) or q.rstrip('.?') in ('show related notes','where is it stored','summarize','summarise','summary')
             sources, mode, warning = [], 'keyword', None

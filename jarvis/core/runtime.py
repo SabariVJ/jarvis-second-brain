@@ -9,6 +9,7 @@ from jarvis.memory.embeddings import Embeddings
 from jarvis.memory.retrieval import Retrieval
 from jarvis.ai.astra import Astra
 from .orchestrator import Orchestrator
+from jarvis.research import WebResearch
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -21,7 +22,8 @@ class Runtime:
         self.embeddings = Embeddings(self.database)
         self.retrieval = Retrieval(self.database, self.embeddings)
         self.brain = Astra()
-        self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain)
+        self.research = WebResearch(model=self.brain.model)
+        self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research)
 
     def health(self):
         return {'ok': True, 'service': 'Jarvis', 'camera_required': False,
@@ -52,6 +54,32 @@ class Runtime:
             if not sid: raise ValueError('Session required')
             _, _, state = self.sessions.get(sid)
             return state.snapshot()
+        if method == 'GET' and path == '/api/research/cards':
+            sid = query.get('session_id',[''])[0]
+            if not sid: raise ValueError('Session required')
+            _,context,_ = self.sessions.get(sid)
+            return {'cards':list(context.research_cards.values())}
+        if method == 'POST' and path == '/api/research/card':
+            if not data.get('session_id'): raise ValueError('Session required')
+            _,context,_ = self.sessions.get(data['session_id'])
+            action,card_id = data.get('action'),data.get('card_id')
+            if action not in ('keep','dismiss','save') or not isinstance(card_id,str):
+                raise ValueError('Invalid research card action')
+            if not context.lock.acquire(False): raise ValueError('Wait for current response')
+            try:
+                card = context.research_cards.get(card_id)
+                if not card: raise ValueError('Research card unavailable or expired')
+                if action == 'dismiss':
+                    del context.research_cards[card_id]
+                    return {'ok':True,'action':action,'card_id':card_id}
+                if action == 'keep':
+                    card['status']='pinned'
+                    return {'ok':True,'action':action,'card':card}
+                doc_id = self.ingestor.save_research(card)
+                card['status']='saved';card['document_id']=doc_id
+                return {'ok':True,'action':action,'card':card,'document_id':doc_id}
+            finally:
+                context.lock.release()
         if method == 'POST' and path in ('/api/jarvis/chat','/api/jarvis/context','/api/jarvis/voice-state'):
             if not data.get('session_id'): raise ValueError('Session required')
             _,context,state = self.sessions.get(data['session_id'])

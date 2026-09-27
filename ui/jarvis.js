@@ -21,6 +21,7 @@ async function boot(){
       <div class="sub" id="j-voice-note">Voice is opt-in and may use your browser’s online speech service.</div>
       <div class="j-row"><button id="j-index">Reindex notes</button><button id="j-embed" hidden>Build semantic index</button><span class="sub" id="j-count"></span></div>
     </aside>
+    <section id="research-cards" aria-label="Temporary research cards"></section>
     <section id="source-reader" role="dialog" aria-modal="true" aria-label="Source document" hidden>
       <div class="j-row"><button id="source-close">Close source</button><button id="source-summary">Summarize this</button></div><h2></h2><small></small><pre></pre>
     </section>`);
@@ -29,7 +30,10 @@ async function boot(){
   const status=value=>{$('j-status').textContent=value;$('jarvis-panel').dataset.state=value;};
   async function api(path,data){const r=await fetch(path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     const result=await r.json();if(!r.ok)throw new Error(result.error||'Request failed');return result}
-  sid=(await api('/api/jarvis/session',{})).session_id;
+  sid=sessionStorage.getItem('jarvis_session');
+  if(sid){try{await api('/api/jarvis/state?session_id='+encodeURIComponent(sid))}catch(_){sid=null}}
+  if(!sid)sid=(await api('/api/jarvis/session',{})).session_id;
+  sessionStorage.setItem('jarvis_session',sid);
   const health=await api('/api/health');
   status(health.mode==='local'?'IDLE · LOCAL MODE':'IDLE · ASTRA CONFIGURED');
   $('j-embed').hidden=!health.embeddings_enabled;
@@ -39,6 +43,32 @@ async function boot(){
     const links=document.createElement('div');links.className='j-sources';
     for(const s of sources){const b=document.createElement('button');b.textContent=s.relative_path||s.title;b.title=s.path;b.onclick=()=>openSource(s.document_id).catch(showError);links.append(b)}
     el.append(links);$('j-log').append(el);while($('j-log').children.length>30)$('j-log').firstChild.remove();$('j-log').scrollTop=$('j-log').scrollHeight;
+  }
+  function researchCard(card){
+    let el=[...$('research-cards').children].find(x=>x.dataset.id===card.id);
+    if(!el){el=document.createElement('article');el.className='research-card';el.dataset.id=card.id;$('research-cards').prepend(el)}
+    el.replaceChildren();
+    const heading=document.createElement('h3');heading.textContent='RESEARCH · '+card.query;
+    const badge=document.createElement('small');badge.textContent=card.status.toUpperCase()+' · '+new Date(card.researched_at*1000).toLocaleString();
+    const summary=document.createElement('p');summary.textContent=card.answer.slice(0,240)+(card.answer.length>240?'…':'');
+    const detail=document.createElement('div');detail.className='research-detail';detail.hidden=true;
+    const full=document.createElement('p');full.textContent=card.answer;detail.append(full);
+    const sources=document.createElement('div');sources.className='research-sources';
+    for(const s of card.sources){const link=document.createElement('a');link.href=s.url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=s.title;link.title=s.url;
+      sources.append(link);if(s.snippet){const note=document.createElement('small');note.textContent='Cited answer excerpt: '+s.snippet;sources.append(note)}}
+    detail.append(sources);
+    const controls=document.createElement('div');controls.className='j-row';
+    const expand=document.createElement('button');expand.textContent='Expand';expand.onclick=()=>{detail.hidden=!detail.hidden;summary.hidden=!detail.hidden;expand.textContent=detail.hidden?'Expand':'Collapse'};
+    const keep=document.createElement('button');keep.textContent='Keep card';keep.disabled=card.status!=='temporary';
+    const save=document.createElement('button');save.textContent=card.status==='saved'?'Saved to brain':'Save to brain';save.disabled=card.status==='saved';
+    const dismiss=document.createElement('button');dismiss.textContent='Dismiss';
+    async function act(action){for(const b of [keep,save,dismiss])b.disabled=true;
+      try{const response=await api('/api/research/card',{session_id:sid,card_id:card.id,action});
+        if(action==='dismiss')el.remove();else{researchCard(response.card);if(action==='save'){await refresh();entry('Research saved to the second brain. Its cited web text remains marked untrusted.')}}
+      }catch(e){showError(e);researchCard(card)}}
+    keep.onclick=()=>act('keep');save.onclick=()=>act('save');dismiss.onclick=()=>act('dismiss');
+    controls.append(expand,keep,save,dismiss);
+    el.append(heading,badge,summary,detail,controls);
   }
   function showError(e){status('ERROR');entry(e.message||'Operation unavailable','assistant')}
   async function select(id){await api('/api/jarvis/context',{session_id:sid,document_id:id});selected=id;
@@ -55,6 +85,7 @@ async function boot(){
   async function refresh(){const [graph,memory]=await Promise.all([api('/api/graph'),api('/api/memory/status')]);galaxy?.setData(graph);$('j-count').textContent=memory.active_sources+' sources';
     if(memory.errors.length)entry('Some files could not be indexed.','assistant',[],memory.errors.map(e=>e.relative_path+': '+e.error).join('\n'))}
   await refresh();
+  try{for(const card of (await api('/api/research/cards?session_id='+encodeURIComponent(sid))).cards)researchCard(card)}catch(e){showError(e)}
   $('brain-toggle').onclick=()=>{$('galaxy').hidden=!$('galaxy').hidden;$('brain-toggle').setAttribute('aria-expanded',String(!$('galaxy').hidden))};
   async function stopSpeech(){speechToken++;window.speechSynthesis?.cancel();if(speaking){speaking=false;
     await api('/api/jarvis/voice-state',{session_id:sid,state:'INTERRUPTED'});await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})}if(!busy)status('IDLE')}
@@ -66,11 +97,13 @@ async function boot(){
     const poll=setInterval(()=>api('/api/jarvis/state?session_id='+encodeURIComponent(sid)).then(s=>{if(busy)status(s.state)}).catch(()=>{}),250);
     try{const result=await api('/api/jarvis/chat',{session_id:sid,message,selected_id:selected,spoken:$('j-speak').checked});
       entry(result.answer,'assistant',result.sources,result.warning);status('IDLE · '+result.mode.toUpperCase());
+      if(result.research_card)researchCard(result.research_card);
       if(result.sources[0]){selected=result.sources[0].document_id;$('j-selection').textContent='Selected: '+result.sources[0].title}
       if(result.node_ids.length){$('galaxy').hidden=false;$('brain-toggle').setAttribute('aria-expanded','true');
         if(galaxy&&!galaxy.meshes.has(result.node_ids[0]))galaxy.setData(await api('/api/graph?focus='+encodeURIComponent(result.node_ids[0])));
         galaxy?.focus(result.node_ids)}
-      if(result.action==='open'&&selected)await openSource(selected);speak(result.answer);
+      if(result.action==='open'&&selected)await openSource(selected);
+      speak(result.mode==='research'?result.answer.slice(0,550):result.answer);
     }finally{clearInterval(poll);busy=false;$('j-send').disabled=false}}
   $('j-form').onsubmit=e=>{e.preventDefault();const q=$('j-input').value;$('j-input').value='';ask(q).catch(showError)};
   $('j-summary').onclick=()=>ask('Summarize this').catch(showError);

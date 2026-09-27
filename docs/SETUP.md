@@ -98,6 +98,13 @@ lexical overlap, verify the correct path, select a note, summarize it, inspect
 citations and test recovery after disconnecting internet. A configured key is not
 the same as a verified account/model connection.
 
+Phase 10 research also uses the same configured OpenAI key. Ask “Research current
+alternatives to X” by text or optional browser voice. The hosted `web_search`
+tool may incur additional charges. Cards cite clickable sources and remain
+temporary; Keep pins one for this tab, while Save to brain explicitly indexes it
+locally. With no key, research reports unavailable and local notes still work.
+Live research quality and source coverage require an authorized account test.
+
 Official references checked 2026-09-27:
 - https://developers.openai.com/api/docs/models/gpt-6-astra
 - https://developers.openai.com/api/docs/quickstart

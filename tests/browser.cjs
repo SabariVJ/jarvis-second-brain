@@ -54,6 +54,36 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     assert.ok(await page.locator('.j-entry').last().locator('.j-sources button').count()>0);
     assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
     await page.locator('#j-index').click();await page.waitForFunction(()=>document.querySelector('#j-status').textContent==='IDLE');
+    await page.locator('#j-input').fill('Research current alternatives to X');await page.locator('#j-send').click();
+    await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('Live research needs an OpenAI API key'));
+    assert.equal(await page.locator('.research-card').count(),0);
+    let research={id:'fixture-card',query:'alternatives to X',status:'temporary',answer:'Alpha reports one result. Beta reports a different result.',
+      researched_at:1790000000,model:'gpt-6-astra',warning:null,sources:[
+        {title:'Alpha',url:'https://example.org/a',snippet:'Alpha reports one result.',snippet_origin:'cited_answer_excerpt'},
+        {title:'Beta',url:'https://example.net/b',snippet:'Beta reports a different result.',snippet_origin:'cited_answer_excerpt'}]};
+    await page.route('**/api/jarvis/chat',async route=>{
+      const body=route.request().postDataJSON();
+      if(!body.message.toLowerCase().startsWith('research '))return route.continue();
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({answer:research.answer,sources:[],node_ids:[],
+        mode:'research',warning:null,action:'focus',state:'IDLE',events:[],research_card:research})});
+    });
+    await page.route('**/api/research/card',async route=>{
+      const body=route.request().postDataJSON();
+      if(body.action==='dismiss')research=null;
+      else research={...research,status:body.action==='keep'?'pinned':'saved',...(body.action==='save'?{document_id:'doc_saved'}:{})};
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,action:body.action,card:research,document_id:research?.document_id})});
+    });
+    await page.route('**/api/research/cards?*',route=>route.fulfill({status:200,contentType:'application/json',
+      body:JSON.stringify({cards:research?[research]:[]})}));
+    await page.locator('#j-input').fill('Research alternatives to X');await page.locator('#j-send').click();
+    await page.waitForFunction(()=>document.querySelector('.research-card'));
+    assert.equal(await page.locator('.research-sources a').first().isVisible(),false);
+    await page.locator('.research-card button').first().click();
+    assert.equal(await page.locator('.research-sources a').count(),2);
+    assert.equal(await page.locator('.research-sources a').first().getAttribute('rel'),'noopener noreferrer');
+    await page.getByRole('button',{name:'Keep card'}).click();await page.waitForFunction(()=>document.querySelector('.research-card small').textContent.includes('PINNED'));
+    await page.reload();await page.waitForFunction(()=>document.querySelector('.research-card small')?.textContent.includes('PINNED'));
+    await page.getByRole('button',{name:'Dismiss'}).click();await page.waitForFunction(()=>!document.querySelector('.research-card'));
     fs.mkdirSync('test-results',{recursive:true});await page.screenshot({path:'test-results/foundation-preview.png'});
     await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/mobile-preview.png'});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);

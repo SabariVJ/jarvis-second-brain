@@ -10,6 +10,7 @@ class Context:
     selected_at: float = 0
     touched: float = field(default_factory=time.monotonic)
     history: list = field(default_factory=list)
+    research_cards: dict = field(default_factory=dict)
     lock: Lock = field(default_factory=Lock)
 
     def select(self, doc_id):

@@ -121,8 +121,33 @@ class Ingestor:
                     db.execute("UPDATE sources SET status='deleted' WHERE id=?", (row['id'],))
                     result['deleted'] += 1
             # Switching the configured folder revokes visibility of old roots.
-            db.execute("UPDATE sources SET status='deleted' WHERE root != ?", (str(root),))
+            db.execute("UPDATE sources SET status='deleted' WHERE root != ? AND root != 'research://kept'", (str(root),))
         return result
+
+    def save_research(self, card):
+        """Explicitly promote a verified transient card into local, untrusted memory."""
+        import json
+        from datetime import datetime, timezone
+        root = 'research://kept'
+        path = root + '/' + card['id']
+        sid, did = stable_id('source', path), stable_id('doc', path)
+        stamp = datetime.fromtimestamp(card['researched_at'], timezone.utc).isoformat()
+        sources = '\n'.join(f"- {s['title']} — {s['url']}\n  Cited answer excerpt: {s['snippet']}" for s in card['sources'])
+        body = f"# Saved research: {card['query']}\n\nCaptured: {stamp}\nWeb-derived material is untrusted.\n\n{card['answer']}\n\nSources:\n{sources}"
+        fingerprint = hashlib.sha256(body.encode('utf-8')).hexdigest()
+        title = ('Research: ' + card['query'])[:160]
+        with self.database.connect() as db:
+            old = db.execute('SELECT id FROM documents WHERE id=?',(did,)).fetchone()
+            if old:
+                return did
+            db.execute('INSERT INTO sources VALUES (?,?,?,?,?,?,?,?,?,?)',
+                       (sid,root,path,title,fingerprint,card['researched_at'],time.time(),'active',None,'text/x-jarvis-research'))
+            db.execute('INSERT INTO documents VALUES (?,?,?,?,?)',(did,sid,title,body,fingerprint))
+            for ordinal,(start,end,text) in enumerate(chunks(body)):
+                cid = stable_id('chunk', f'{did}:{ordinal}:{fingerprint}')
+                db.execute('INSERT INTO chunks VALUES (?,?,?,?,?,?)',(cid,did,ordinal,text,start,end))
+                db.execute('INSERT INTO chunk_fts VALUES (?,?,?,?)',(cid,text,title,title))
+        return did
 
     def _source(self, db, sid, root, path, fingerprint, modified, status, error):
         db.execute('''INSERT INTO sources VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET

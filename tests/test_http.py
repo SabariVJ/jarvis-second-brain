@@ -58,3 +58,33 @@ class HTTPTests(unittest.TestCase):
         for route in ['/data/memory.sqlite','/.env','/ui/%2e%2e/server.py','/ui/..%5cdata%5cmemory.sqlite']:
             self.assertEqual(self.request(route)[0],404,route)
         self.assertEqual(self.request('/ui/app.js')[0],200)
+
+    def test_research_card_requires_own_session_and_explicit_save(self):
+        from types import SimpleNamespace as NS
+        from unittest.mock import Mock
+        from jarvis.research import WebResearch
+        from jarvis.core.orchestrator import Orchestrator
+        engine=Mock()
+        answer='Alpha result. Beta result.'
+        engine.responses.create.return_value=NS(status='completed',output_text=answer,
+            output=[NS(type='web_search_call',status='completed'),NS(type='message',content=[NS(annotations=[
+                NS(type='url_citation',url='https://example.org/a',title='Alpha',start_index=0,end_index=13),
+                NS(type='url_citation',url='https://example.net/b',title='Beta',start_index=14,end_index=len(answer))])])])
+        server.RUNTIME.research=WebResearch(client=engine)
+        server.RUNTIME.orchestrator=Orchestrator(server.RUNTIME.database,server.RUNTIME.retrieval,
+            server.RUNTIME.graph,server.RUNTIME.brain,server.RUNTIME.research)
+        a=json.loads(self.request('/api/jarvis/session',{})[1])['session_id']
+        b=json.loads(self.request('/api/jarvis/session',{})[1])['session_id']
+        response=json.loads(self.request('/api/jarvis/chat',{'session_id':a,'message':'research alternatives to X'})[1])
+        self.assertEqual(response['mode'],'research')
+        card=response['research_card'];self.assertEqual(server.RUNTIME.database.status()['documents'],1)
+        self.assertEqual(json.loads(self.request('/api/research/cards?session_id='+b)[1])['cards'],[])
+        self.assertEqual(self.request('/api/research/card',{'session_id':b,'card_id':card['id'],'action':'save'})[0],400)
+        self.assertEqual(self.request('/api/research/card',{'session_id':a,'card_id':card['id'],'action':'keep'})[0],200)
+        saved=json.loads(self.request('/api/research/card',{'session_id':a,'card_id':card['id'],'action':'save'})[1])
+        self.assertEqual(server.RUNTIME.database.document(saved['document_id'])['source_id'][:7],'source_')
+        self.assertEqual(self.request('/api/memory/reindex',{})[0],200)
+        self.assertEqual(server.RUNTIME.database.status()['active_sources'],2)
+        self.assertEqual(self.request('/api/research/card',{'session_id':a,'card_id':card['id'],'action':'dismiss'})[0],200)
+        self.assertEqual(json.loads(self.request('/api/research/cards?session_id='+a)[1])['cards'],[])
+        self.assertEqual(server.RUNTIME.database.status()['active_sources'],2)

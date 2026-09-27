@@ -122,3 +122,24 @@ Original APIs are preserved; GET /api/state was added. New endpoints:
 | GET | /api/memory/search?q=… | Hybrid/local search with citations |
 | GET | /api/memory/document?id=… | Active indexed source snapshot |
 | GET | /api/graph?focus=… | Bounded source-supported graph |
+
+## Phase 10: web research
+
+An explicit “research …” or “search the web …” request calls the official Responses
+`web_search` tool with required tool choice. The server accepts a result only when
+the web-search call completed and the final answer contains usable URL citation
+annotations. Cited URLs are validated for HTTPS public hostnames before display.
+Source cards carry title, URL and an excerpt from the cited **answer**; that excerpt
+is not represented as a quote from the webpage. If fewer than two sources were
+cited, the UI warns that the result was not cross-checked. No fetched page can
+change Jarvis tool permissions or reach the local static server.
+
+Research cards live only in the tab's expiring session. Keep pins a temporary card;
+Dismiss removes it. Save to brain is an explicit local write which creates an
+indexed, source-backed research document with cited links and a prominent untrusted
+web-derived label. The folder reindexer preserves this special root. Saving does
+not silently trust the content. No autonomous card persistence occurs.
+
+`GET /api/research/cards?session_id=…` lists a tab's cards; `POST
+/api/research/card` accepts keep, dismiss or save for a card owned by that tab.
+No API credentials means an explicit unavailable response and no card.
