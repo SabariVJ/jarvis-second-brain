@@ -269,3 +269,9 @@ Screen capture continues through **Explain current screen once**, which uses
 the browser's explicit display chooser and discards its frame after analysis.
 Native volume and foreground behavior should be physically verified on your
 Windows machine.
+
+Jarvis also starts without cloud credentials, internet, microphone or camera.
+The settings panel marks unavailable services as **ACTION REQUIRED** or
+**DISABLED**. Local indexed-note search, graph browsing and text chat keep
+working in that mode. Remote features run only when requested; Telegram polling
+is opt-in and can be stopped from the local panel.

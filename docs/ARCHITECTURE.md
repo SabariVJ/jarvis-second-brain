@@ -270,6 +270,16 @@ the existing explicit browser display chooser; no screenshot is persisted. No
 shell or arbitrary command execution is exposed. Volume and native foreground
 inspection still need physical Windows acceptance.
 
+## Phase 28: Offline and degraded mode
+
+The local runtime does not require an OpenAI key, network, microphone, camera,
+Gmail, Calendar or Telegram. Providers report unavailable states, and user
+initiated remote requests fail with bounded error/fallback messages. No service
+starts an endless retry loop; Telegram polling is opt-in and stoppable. With
+network access blocked, indexed note search, the knowledge graph, SQLite
+memory, simulation and camera-free text UI remain available. Gmail/Calendar
+adapters fail before calling their transports when OAuth is absent.
+
 ## Phase 15: Focus Lock
 
 Focus Lock starts only after the user presses Start or asks for a focus session.
