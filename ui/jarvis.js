@@ -37,6 +37,24 @@ async function boot(){
         <div class="j-row"><button id="settings-refresh" type="button">Refresh diagnostics</button><button id="settings-save-card" type="button">Save system status card</button></div>
         <div id="settings-items" role="list" aria-live="polite"></div><small id="settings-guide" class="sub"></small><pre id="settings-diagnostics" class="sub"></pre>
       </section>
+      <section id="automation-card" aria-label="Local automations"><h3>LOCAL AUTOMATIONS <span id="automation-state" class="sub">LOADING</span></h3>
+        <p class="sub">Rules start disabled. They can create local notices, prepare a briefing, or monitor an active focus session. They cannot send messages or change provider data.</p>
+        <form id="automation-form">
+          <input id="automation-name" maxlength="80" placeholder="Automation name" required>
+          <label class="sub">Trigger<select id="automation-trigger"><option>TIME</option><option>EVENT</option><option>STATE</option><option>PROVIDER_EVENT</option></select></label>
+          <label class="sub" id="automation-time-label">Daily time<input id="automation-time" type="time"></label>
+          <label class="sub" id="automation-event-label" hidden>Event<select id="automation-event"></select></label>
+          <label class="sub" id="automation-provider-label" hidden>Provider event<select id="automation-provider-event"><option value="GMAIL:IMPORTANT_EMAIL">Gmail · important email</option><option value="CALENDAR:CALENDAR_APPROACHING">Calendar · event approaching</option></select></label>
+          <label class="sub">Importance condition<select id="automation-importance"><option value="">Any importance</option><option>IMPORTANT</option><option>NORMAL</option></select></label>
+          <label class="sub">Action<select id="automation-action"><option value="LOCAL_NOTIFICATION">Local notification</option><option value="MORNING_BRIEFING">Prepare morning briefing</option><option value="DISTRACTION_MONITOR">Monitor active focus</option></select></label>
+          <input id="automation-title" maxlength="100" placeholder="Notification title">
+          <textarea id="automation-message" maxlength="500" rows="2" placeholder="Notification message"></textarea>
+          <label class="sub"><input id="automation-enabled" type="checkbox"> Enable after saving</label>
+          <div class="j-row"><button id="automation-save" type="submit">Create automation</button><button id="automation-cancel" type="button" hidden>Cancel edit</button><button id="automation-run-due" type="button">Run due schedules now</button></div>
+        </form>
+        <div id="automation-notifications" role="status" aria-live="polite"></div><div id="automation-items" role="list" aria-live="polite"></div>
+        <details><summary>Recent automation audit</summary><div id="automation-runs" role="list"></div></details>
+      </section>
       <div class="j-row"><button id="j-screen">Explain current screen once</button><span id="j-screen-state" class="sub" role="status" aria-live="polite">SCREEN OFF</span></div>
       <div class="j-row"><button id="j-eyes">Look at this once</button><span id="j-camera-state" class="sub" role="status" aria-live="polite">CAMERA READY</span></div>
       <section id="focus-card" aria-label="H.O.L.O Focus Lock">
@@ -197,6 +215,52 @@ async function boot(){
   refreshApprovals().catch(()=>{});setInterval(()=>refreshApprovals().catch(()=>{}),5000);
   loadVisualCards().catch(()=>{});
   refreshSettings().catch(()=>{$('settings-overall').textContent='ERROR'});
+  let automationSnapshot={items:[],runs:[],notifications:[]},editingAutomation=null;
+  function automationEventOptions(type,selected=''){
+    const choices=type==='STATE'?['FOCUS_ACTIVE','FOCUS_PAUSED']:['BUILD_FINISHED','DEADLINE_REACHED','FOCUS_STARTED','FOCUS_ENDED'];
+    const select=$('automation-event');select.replaceChildren();for(const value of choices){const option=document.createElement('option');option.value=value;option.textContent=value;select.append(option)}
+    if(choices.includes(selected))select.value=selected;
+  }
+  function automationTriggerFields(){const type=$('automation-trigger').value;
+    $('automation-time-label').hidden=type!=='TIME';$('automation-event-label').hidden=type!=='EVENT'&&type!=='STATE';
+    $('automation-provider-label').hidden=type!=='PROVIDER_EVENT';automationEventOptions(type,$('automation-event').value)}
+  $('automation-trigger').onchange=automationTriggerFields;automationTriggerFields();
+  async function refreshAutomations(){const result=await api('/api/automations');automationSnapshot=result;
+    const host=$('automation-items');host.replaceChildren();$('automation-state').textContent=`${result.items.length} RULE${result.items.length===1?'':'S'} · LOCAL ONLY`;
+    for(const item of result.items){const row=document.createElement('article');row.className='automation-item';row.dataset.id=item.id;
+      const title=document.createElement('strong');title.textContent=item.name;
+      const detail=document.createElement('small');detail.textContent=`${item.trigger.type} · ${item.trigger.daily_at||item.trigger.event||item.trigger.state||item.trigger.provider+' '+item.trigger.event} · ${item.enabled?'ENABLED':'DISABLED'} · ${item.last_run?'Last run '+new Date(item.last_run*1000).toLocaleString():'Not run yet'}${item.next_run?' · Next '+new Date(item.next_run*1000).toLocaleString():''}`;
+      const actions=document.createElement('div');actions.className='j-row';
+      for(const [label,operation] of [[item.enabled?'Disable':'Enable',item.enabled?'disable':'enable'],['Edit','edit'],['Delete','delete']]){const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=async()=>{
+        try{if(operation==='edit'){editingAutomation=item;$('automation-name').value=item.name;$('automation-trigger').value=item.trigger.type;
+          automationEventOptions(item.trigger.type,item.trigger.event||item.trigger.state||'');$('automation-time').value=item.trigger.daily_at||'';
+          if(item.trigger.provider)$('automation-provider-event').value=item.trigger.provider+':'+item.trigger.event;
+          $('automation-importance').value=item.conditions.importance||'';$('automation-action').value=item.action.type;
+          $('automation-title').value=item.action.title||'';$('automation-message').value=item.action.message||'';$('automation-enabled').checked=item.enabled;
+          $('automation-save').textContent='Save automation';$('automation-cancel').hidden=false;automationTriggerFields();$('automation-form').scrollIntoView({block:'nearest'})}
+        else{await api('/api/automations/'+operation,{id:item.id});await refreshAutomations()}}
+        catch(error){showError(error)}};actions.append(button)}
+      row.append(title,detail,actions);host.append(row)}
+    const notices=$('automation-notifications');notices.replaceChildren();for(const note of result.notifications||[]){const item=document.createElement('article');item.className='automation-notice';
+      const heading=document.createElement('strong');heading.textContent=note.title;const message=document.createElement('span');message.textContent=note.message;
+      item.append(heading,message);notices.prepend(item)}
+    const runs=$('automation-runs');runs.replaceChildren();for(const run of result.runs||[]){const item=document.createElement('div');item.className='automation-run';
+      item.textContent=`${new Date(run.finished_at*1000).toLocaleString()} · ${run.trigger_type} · ${run.status}`;runs.append(item)}
+  }
+  function resetAutomationForm(){editingAutomation=null;$('automation-form').reset();$('automation-save').textContent='Create automation';$('automation-cancel').hidden=true;automationTriggerFields()}
+  $('automation-form').onsubmit=async event=>{event.preventDefault();const name=$('automation-name').value.trim(),type=$('automation-trigger').value;
+    let trigger={type};if(type==='TIME')trigger.daily_at=$('automation-time').value;
+    else if(type==='EVENT'||type==='STATE')trigger[type==='STATE'?'state':'event']=$('automation-event').value;
+    else{const [provider,eventName]=$('automation-provider-event').value.split(':');trigger={type,provider,event:eventName}}
+    const conditions=$('automation-importance').value?{importance:$('automation-importance').value}:{};
+    const actionType=$('automation-action').value,action={type:actionType};if(actionType==='LOCAL_NOTIFICATION'){
+      action.title=$('automation-title').value.trim();action.message=$('automation-message').value.trim()}
+    const rule={name,trigger,conditions,action,enabled:$('automation-enabled').checked};
+    try{await api(editingAutomation?'/api/automations/update':'/api/automations',editingAutomation?{id:editingAutomation.id,automation:rule}:rule);
+      resetAutomationForm();await refreshAutomations()}catch(error){showError(error)}};
+  $('automation-cancel').onclick=resetAutomationForm;
+  $('automation-run-due').onclick=async()=>{try{await api('/api/automations/run-due',{});await refreshAutomations()}catch(error){showError(error)}};
+  refreshAutomations().catch(()=>{$('automation-state').textContent='UNAVAILABLE'});
   function researchCard(card){
     let el=[...$('research-cards').children].find(x=>x.dataset.id===card.id);
     if(!el){el=document.createElement('article');el.className='research-card';el.dataset.id=card.id;$('research-cards').prepend(el)}

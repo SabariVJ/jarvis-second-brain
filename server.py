@@ -248,5 +248,17 @@ class LocalServer(ThreadingHTTPServer):
 
 if __name__ == "__main__":
     RUNTIME = Runtime(ROOT, notes_dir)
+    automation_stop = threading.Event()
+    def automation_scheduler():
+        while not automation_stop.wait(15):
+            try:
+                RUNTIME.automations.run_due()
+            except Exception:
+                # The next bounded tick retries; no provider is polled here.
+                pass
+    threading.Thread(target=automation_scheduler, daemon=True, name='jarvis-automation-scheduler').start()
     print(f"HOLO deck on http://localhost:{PORT}  ·  notes: {notes_dir()}")
-    LocalServer(("127.0.0.1", PORT), H).serve_forever()
+    try:
+        LocalServer(("127.0.0.1", PORT), H).serve_forever()
+    finally:
+        automation_stop.set()

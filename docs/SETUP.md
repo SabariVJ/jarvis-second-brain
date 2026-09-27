@@ -282,3 +282,13 @@ transcripts, raw audio, screen captures or camera frames. Telegram voice notes
 are transient in-memory inputs. Research cards persist only when you choose
 Save. Mic, wake, screen and camera indicators show when those features are
 active.
+
+**Local Automations** are opt-in and disabled when created. Set a daily local
+time or choose an allowlisted app event, Focus state, or provider-event hook.
+The server checks schedules every 15 seconds while it is running. Actions only
+create a local notice, prepare a briefing, or inspect local Focus status; they
+cannot send email/Telegram, change Calendar, or approve another action. Gmail
+and Calendar event subscriptions are not polled until a locally authorized
+provider event source is configured. Definitions and bounded run audits are
+stored in the private SQLite database; notification cards are transient in
+memory.

@@ -53,6 +53,26 @@ class HTTPTests(unittest.TestCase):
         self.assertTrue(settings['diagnostics']['database_healthy'])
         self.assertNotIn('OPENAI_API_KEY',json.dumps(settings));self.assertNotIn('TELEGRAM_BOT_TOKEN',json.dumps(settings))
 
+    def test_automation_api_creates_edits_disables_and_audits_local_rule(self):
+        self.assertEqual(json.loads(self.request('/api/automations')[1])['items'],[])
+        rule={'name':'Build finished','trigger':{'type':'EVENT','event':'BUILD_FINISHED'},'conditions':{},
+            'action':{'type':'LOCAL_NOTIFICATION','title':'Build finished','message':'Review the local build.'}}
+        status,raw=self.request('/api/automations',rule);self.assertEqual(status,200)
+        automation=json.loads(raw)['automation'];self.assertFalse(automation['enabled'])
+        self.assertEqual(automation['permission_requirement'],'L0_READ_LOCAL_ONLY')
+        self.assertEqual(self.request('/api/automations/event',{'event':'BUILD_FINISHED'})[0],404)
+        self.assertEqual(self.request('/api/automations/enable',{'id':automation['id']})[0],200)
+        server.RUNTIME.automations.emit_event('BUILD_FINISHED')
+        snapshot=json.loads(self.request('/api/automations')[1])
+        self.assertEqual(snapshot['runs'][0]['status'],'SUCCEEDED')
+        self.assertEqual(snapshot['notifications'][0]['message'],'Review the local build.')
+        changed={**rule,'action':{'type':'SEND_EMAIL','to':'private@example.test'}}
+        self.assertEqual(self.request('/api/automations/update',{'id':automation['id'],'automation':changed})[0],400)
+        edited={**rule,'action':{'type':'LOCAL_NOTIFICATION','title':'Edited','message':'Local only.'}}
+        self.assertEqual(self.request('/api/automations/update',{'id':automation['id'],'automation':edited})[0],200)
+        self.assertEqual(self.request('/api/automations/disable',{'id':automation['id']})[0],200)
+        self.assertEqual(self.request('/api/automations/delete',{'id':automation['id']})[0],200)
+
     def test_spatial_context_events_resolve_notes_and_reject_injection(self):
         sid=json.loads(self.request('/api/jarvis/session',{})[1])['session_id']
         did=json.loads(self.request('/api/memory/search?q=brand%20voice')[1])['results'][0]['document_id']

@@ -25,6 +25,7 @@ from jarvis.tools import Tool
 from jarvis.approvals import ApprovalEngine
 from jarvis.cards import VisualCards
 from jarvis.windows import WindowsTools
+from jarvis.automations import AutomationEngine
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -44,6 +45,7 @@ class Runtime:
         self.gmail = GmailAdapter()
         self.calendar = CalendarAdapter()
         self.briefing = MorningBriefing(self.database,self.gmail,self.calendar,self.focus)
+        self.automations = AutomationEngine(self.database,self.briefing,self.focus)
         self.long_term_memory=LongTermMemory(self.database)
         data_dir=Path(os.environ.get('JARVIS_DATA_DIR', str(Path(root)/'data')))
         self.documents=DocumentAutomation(self.database,data_dir)
@@ -275,6 +277,7 @@ class Runtime:
         if method == 'GET' and path == '/api/health':
             return {**self.health(),'screen_vision_enabled':self.vision.enabled}
         if method == 'GET' and path == '/api/settings/status':return self.settings_status()
+        if method == 'GET' and path == '/api/automations':return self.automations.list()
         if method == 'GET' and path == '/api/tools':
             return {'tools':self.orchestrator.tools.definitions(),'shell_available':False}
         if method == 'GET' and path == '/api/cards':return self.cards.list(query.get('all',[''])[0]=='1')
@@ -296,6 +299,13 @@ class Runtime:
             return self.approvals.confirm(data.get('approval_id'),data.get('confirmation'))
         if method == 'POST' and path == '/api/approvals/reject':
             return {'approval':self.approvals.reject(data.get('approval_id'))}
+        if method == 'POST' and path == '/api/automations':return {'automation':self.automations.create(data)}
+        if method == 'POST' and path == '/api/automations/update':
+            return {'automation':self.automations.update(data.get('id'),data.get('automation'))}
+        if method == 'POST' and path in ('/api/automations/enable','/api/automations/disable'):
+            return {'automation':self.automations.set_enabled(data.get('id'),path.endswith('/enable'))}
+        if method == 'POST' and path == '/api/automations/delete':return self.automations.delete(data.get('id'))
+        if method == 'POST' and path == '/api/automations/run-due':return self.automations.run_due()
         if method == 'POST' and path == '/api/tools/execute':
             return self._execute_tool(data.get('name'),data.get('arguments',{}))
         if method == 'GET' and path == '/api/focus':
@@ -350,10 +360,16 @@ class Runtime:
         if method == 'POST' and path == '/api/calendar/cancel':
             return self._execute_tool('cancel_calendar_event',{key:data[key] for key in ('event_id','confirmation') if key in data})
         if method == 'POST' and path == '/api/focus/start':
-            return self.focus.start(data.get('minutes',90),data.get('goal','Focus session'),data.get('allowed_apps'),data.get('distractions'))
-        if method == 'POST' and path == '/api/focus/pause': return self.focus.pause()
-        if method == 'POST' and path == '/api/focus/resume': return self.focus.resume()
-        if method == 'POST' and path == '/api/focus/stop': return self.focus.stop()
+            result=self.focus.start(data.get('minutes',90),data.get('goal','Focus session'),data.get('allowed_apps'),data.get('distractions'))
+            self.automations.emit_event('FOCUS_STARTED')
+            self.automations.emit_state('FOCUS_ACTIVE')
+            return result
+        if method == 'POST' and path == '/api/focus/pause':
+            result=self.focus.pause();self.automations.emit_state('FOCUS_PAUSED');return result
+        if method == 'POST' and path == '/api/focus/resume':
+            result=self.focus.resume();self.automations.emit_state('FOCUS_ACTIVE');return result
+        if method == 'POST' and path == '/api/focus/stop':
+            result=self.focus.stop();self.automations.emit_event('FOCUS_ENDED');return result
         if method == 'POST' and path in ('/api/vision/screen','/api/vision/camera'):
             return self.vision.analyze_frame(data.get('question'),data.get('image_data_url'))
         if method == 'GET' and path == '/api/memory/status':

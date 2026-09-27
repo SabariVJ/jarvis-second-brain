@@ -72,7 +72,19 @@ CREATE TABLE IF NOT EXISTS visual_cards (
  created_at REAL NOT NULL, updated_at REAL NOT NULL, pinned INTEGER NOT NULL DEFAULT 0,
  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','dismissed')));
 CREATE INDEX IF NOT EXISTS visual_cards_latest ON visual_cards(status,pinned DESC,updated_at DESC);
-PRAGMA user_version=5;
+CREATE TABLE IF NOT EXISTS automations (
+ id TEXT PRIMARY KEY, name TEXT NOT NULL, trigger_json TEXT NOT NULL,
+ conditions_json TEXT NOT NULL, action_json TEXT NOT NULL,
+ enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)), created_at REAL NOT NULL,
+ last_run REAL, next_run REAL, permission_requirement TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'READY' CHECK(status IN ('READY','DISABLED','ERROR')));
+CREATE INDEX IF NOT EXISTS automations_due ON automations(enabled,next_run);
+CREATE TABLE IF NOT EXISTS automation_runs (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, automation_id TEXT NOT NULL, started_at REAL NOT NULL,
+ finished_at REAL NOT NULL, trigger_type TEXT NOT NULL, status TEXT NOT NULL,
+ result_json TEXT NOT NULL DEFAULT '{}');
+CREATE INDEX IF NOT EXISTS automation_runs_latest ON automation_runs(automation_id,started_at DESC);
+PRAGMA user_version=6;
 '''
 
 class Database:
@@ -81,7 +93,7 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version > 5: raise ValueError('Database schema is newer than this application')
+            if version > 6: raise ValueError('Database schema is newer than this application')
             db.executescript(SCHEMA)
             columns={row['name'] for row in db.execute('PRAGMA table_info(memories)')}
             additions={
@@ -100,7 +112,7 @@ class Database:
             db.execute('UPDATE memories SET updated_at=created WHERE updated_at=0')
             db.execute('CREATE INDEX IF NOT EXISTS memory_active_category ON memories(status,category,updated_at DESC)')
             db.execute('CREATE INDEX IF NOT EXISTS memory_normalized ON memories(normalized)')
-            db.execute('PRAGMA user_version=5')
+            db.execute('PRAGMA user_version=6')
 
     @contextmanager
     def connect(self):

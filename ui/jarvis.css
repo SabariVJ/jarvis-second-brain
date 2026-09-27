@@ -68,6 +68,17 @@
 .setting-item small{display:block;color:#aab7c4;margin-top:4px}.setting-state{display:inline-block;margin-top:4px;font:9px ui-monospace,monospace;color:#a6e7d1}
 .setting-state.action-required,.setting-state.error{color:#ffc19d}.setting-state.disabled{color:#a5aab1}
 #settings-diagnostics{white-space:pre-wrap;max-height:140px;overflow:auto;margin:0;font:9px/1.4 ui-monospace,monospace;color:#aebdcc}
+#automation-card{border:1px solid #75613e;border-radius:12px;background:#18170f;padding:10px;display:flex;flex-direction:column;gap:7px}
+#automation-card h3{font:11px ui-monospace,monospace;letter-spacing:.1em;color:#f2d28d;margin:0}
+#automation-card form{display:flex;flex-direction:column;gap:6px}
+#automation-card label{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+#automation-card select,#automation-card input,#automation-card textarea{min-width:0;flex:1}
+#automation-items,#automation-notifications,#automation-runs{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto}
+.automation-item,.automation-notice{border:1px solid #4c4938;border-radius:8px;padding:8px;overflow-wrap:anywhere}
+.automation-item strong,.automation-item small,.automation-notice strong,.automation-notice span{display:block}
+.automation-item small{color:#bdb79e;margin:5px 0}
+.automation-notice{background:#222015}.automation-notice span{color:#d7d0bb;margin-top:4px;white-space:pre-wrap}
+.automation-run{font:10px/1.5 ui-monospace,monospace;color:#bdb79e;padding:3px}
 #j-mute[aria-pressed=true]{background:#682d2d;border-color:#e17e74;color:#fff0ed}
 .focus-fields{display:grid;grid-template-columns:90px 1fr;gap:6px}
 .focus-fields input{padding:7px!important}

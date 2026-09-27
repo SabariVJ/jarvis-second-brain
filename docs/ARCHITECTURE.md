@@ -169,6 +169,10 @@ Original APIs are preserved; GET /api/state was added. New endpoints:
 | Method | Route | Purpose |
 |---|---|---|
 | GET | /api/health | Configured/local state; no secret values |
+| GET | /api/automations | Local rules, bounded run audit and transient notices |
+| POST | /api/automations | Create a disabled-by-default validated local rule |
+| POST | /api/automations/{update,enable,disable,delete} | Edit or control one local rule |
+| POST | /api/automations/run-due | Check and run due local TIME rules |
 | POST | /api/jarvis/session | Create tab session |
 | GET | /api/jarvis/state?session_id=… | State and bounded event history |
 | POST | /api/jarvis/context | Record a bounded, session-local H.O.L.O selection/open/graph event; note metadata is resolved server-side |
@@ -306,6 +310,28 @@ duration, pauses, focus seconds, distraction count and outcome. Browser URL
 inspection is not available in this local web app; browser tab titles can match
 user-provided site keywords. On platforms without Windows window APIs the timer
 and controls remain available while app monitoring reports unavailable.
+
+## Phase 30: local automations
+
+Rules live in SQLite `automations`; bounded audit entries live in
+`automation_runs`. The schema stores a name, allowlisted trigger, structured
+conditions, allowlisted action, enabled state, timestamps, permission label and
+status. TIME rules run once daily at the machine's local `HH:MM`; the server's
+15-second worker checks due rules only while the app is running. Rules are
+disabled on creation and can be edited, enabled, disabled or removed in the
+Local Automations panel. Trigger classes cover TIME, EVENT, STATE and
+PROVIDER_EVENT. Focus controls emit local state and lifecycle events; provider
+adapters can call the constrained provider-event hook when configured.
+
+Actions are restricted to a transient local notification, preparing a morning
+briefing, or checking local Focus state. Nothing in the automation registry
+can send email or Telegram, mutate Calendar, invoke a tool, grant an approval,
+or run shell commands. Provider event payloads are reduced to allowlisted
+fields before matching and are never written to the audit log. Audit results
+store only status and safe metadata. Notifications remain in memory until the
+server restarts; rule definitions and run history are local persistent data.
+Gmail/Calendar event polling is not started automatically; OAuth and a
+user-authorized event source are still needed for live provider events.
 
 ## Phase 10: web research
 
