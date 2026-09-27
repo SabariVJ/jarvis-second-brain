@@ -122,6 +122,24 @@ class H(BaseHTTPRequestHandler):
         if not local_request(self.headers, self.server.server_port):
             return self._send(403, {"error": "Local same-origin access only"})
         parsed = urlsplit(self.path)
+        if parsed.path == '/api/documents/file' and RUNTIME:
+            try:
+                artifact=RUNTIME.documents.read_file(parse_qs(parsed.query).get('id',[''])[0])
+                download=parse_qs(parsed.query).get('download',[''])[0]=='1'
+                disposition='attachment' if download else 'inline'
+                filename=artifact['filename']
+                body=artifact['content']
+                self.send_response(200)
+                self.send_header('Content-Type','application/pdf')
+                self.send_header('X-Content-Type-Options','nosniff')
+                self.send_header('Content-Security-Policy',"frame-ancestors 'self'")
+                self.send_header('Referrer-Policy','no-referrer')
+                self.send_header('Cache-Control','no-store')
+                self.send_header('Content-Disposition',f'{disposition}; filename="{filename}"')
+                self.send_header('Content-Length',str(len(body)))
+                self.end_headers();self.wfile.write(body);return
+            except ValueError as error:return self._send(404,{'error':str(error)})
+            except Exception:return self._send(500,{'error':'Generated document could not be opened'})
         if RUNTIME:
             try:
                 result = RUNTIME.dispatch('GET', parsed.path, {}, parse_qs(parsed.query))

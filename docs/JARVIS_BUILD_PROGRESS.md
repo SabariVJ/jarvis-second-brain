@@ -1,12 +1,12 @@
-# JARVIS build progress — continuation through Phase 21
+# JARVIS build progress — continuation through Phase 21, 2026-09-28
 
 Branch: `jarvis-second-brain`.
 User-specified run start SHA: `07e086e9cebfbb3ad20f3908c24251ba8554c9e5`.
 Recovered checkpoint before this continuation: `07e086e9cebfbb3ad20f3908c24251ba8554c9e5`.
 The original archive on D: is unchanged.
 
-Phases 0–19 are preserved and complete. Live account and physical device
-acceptance remain user actions; this is not a full video-parity claim.
+Phases 0–20 are preserved and complete. Live account and physical device
+acceptance remain pending. This is not a full video-parity claim.
 
 ## Phase status, files, validation and remaining work
 
@@ -15,7 +15,7 @@ acceptance remain user actions; this is not a full video-parity claim.
 | 0 Audit | Complete, host launcher caveat | BASELINE_AUDIT.md | Probe 26/26, sim, root, tree, state POST | 278fe99, 63285c7 | Native py absent from tool PATH; launch.cmd verified |
 | 1 Runtime | Complete | core/runtime.py, server.py | HTTP tests, actual restart | fc74313 | None |
 | 2 State machine | Complete foundation | core/state.py, context.py, ui/jarvis.js | State paths, isolation, voice lifecycle | fc74313, ba9a487 | Spoken interruption remains in Phase 12 |
-| 3 Second brain | Complete foundation | memory/database.py, graph.py | Provenance FKs, evidence, active-only graph | f2aa1f8 | Long-term memory workflows are Phase 19 |
+| 3 Second brain | Complete foundation | memory/database.py, graph.py | Provenance FKs, evidence, active-only graph | f2aa1f8 | Long-term memory workflows are complete in Phase 19 |
 | 4 Ingestion | Complete supported formats | memory/ingestion.py | MD/TXT/PDF, fingerprints, idempotence, changes/deletes, offsets | f2aa1f8, ba9a487 | OCR and other formats deferred |
 | 5 Semantic retrieval | Implemented, live pending | embeddings.py, retrieval.py | Mock semantic paraphrase, local FTS/fuzzy, model-keyed vectors | 03815ed | Authorized real vectors and personal-corpus relevance; offline is keyword/fuzzy |
 | 6 Astra | Implemented, live pending | ai/astra.py, orchestrator.py, tools.py | Official SDK mocked HTTP, citations, failure fallback | 03815ed, ba9a487 | Account/model access with authorized credentials |
@@ -31,28 +31,26 @@ acceptance remain user actions; this is not a full video-parity claim.
 | 16 Gmail | Complete code/mocks/UI, OAuth user setup required | integrations/google_oauth.py, gmail.py, runtime.py, ui/jarvis.js | 44 Python tests; mocked OAuth/API, disconnected state, inbox/unread/search/thread/local summary/draft/reply/send confirmation; browser acceptance and probe 26/26 | dbde059 | User must configure local Google OAuth before live Gmail use |
 | 17 Calendar | Complete code/mocks/UI, OAuth user setup required | integrations/calendar.py, runtime.py, ui/jarvis.js | 51 Python tests; mocked today/tomorrow/range/search/free-busy and create/reschedule/cancel confirmation; browser acceptance and probe 26/26 | eda74d3 | User must configure Calendar OAuth scopes before live use |
 | 18 Morning briefing | Complete code/mocks/UI, OAuth user setup required for live data | briefing.py, runtime.py, ui/jarvis.js, H.O.L.O briefing card | 55 Python tests; disconnected/failure fallbacks, source-backed brain inputs, mock integrations, manual-only card/voice; browser acceptance and probe 26/26 | 38d6d70 | Optional Google OAuth setup for live Gmail and Calendar inputs |
-| 19 Long-term Memory | Complete | memory/long_term.py, database.py, orchestrator.py, runtime.py, ui/jarvis.js | 65 Python tests; probe 26/26; launch health; browser acceptance later passed | 1c71e9b | None |
-| 20 Telegram Remote Jarvis | Complete code/mocks/UI; bot setup user action required | integrations/telegram.py, runtime.py, ui/jarvis.js | 73 Python tests; allowlist, private chat only, mocked poll/voice/share; browser acceptance and probe 26/26 | Pending | Local bot token, numeric allowlist and opt-in flag needed for live account test |
-| 21 Invoice / Document Automation | Not started | MASTER_SPEC.md | — | — | Next and final coding phase; stop after validation and handoff |
+| 19 Long-term Memory | Complete | memory/long_term.py, database.py, orchestrator.py, runtime.py, ui/jarvis.js | 65 Python tests; probe 26/26; launch health; browser panel; full browser suite later passed | 1c71e9b | None |
+| 20 Telegram Remote Jarvis | Complete, account setup required for live use | integrations/telegram.py, runtime.py, ui/jarvis.js | Allowlist, polling, voice mocks, approved-file two-step tests; browser disabled-state acceptance; probe 26/26 | 0c483dc | Configure a local bot token and allowlist for live verification |
+| 21 Invoice / Document Automation | Complete | documents.py, database.py, runtime.py, server.py, ui/jarvis.js | 84 Python tests; real local PDF generation; invoice and report browser flows; probe 26/26; launch.cmd | Final SHA in `../FINAL_HANDOFF.md` | None; stop at Phase 21 |
 
 ## Phase 19 continuation checkpoint
 
 This continuation began at `07e086e9cebfbb3ad20f3908c24251ba8554c9e5`,
-with a clean working tree. Phase 19 was committed as
-`1c71e9bb2b792e65ea2215457fb88c86a1e51b6f`. It added an opt-in personal-memory panel and
+with a clean working tree. It added an opt-in personal-memory panel and
 search/inspect/update/forget API on the existing source-backed SQLite schema.
 Explicit saves reject secret-like values and non-user provenance. Narrow
 first-person significance rules may capture profile, preference, project,
 decision, workflow, person, and task facts; conversations and provider content
 are not bulk-saved. Retrieval marks personal memories separately from indexed
 notes. Schema migration, HTTP, orchestrator, provenance, and text-safe UI tests
-are included. Focused and full Python tests pass (65/65).
-Phase 19 commit: `1c71e9bb2b792e65ea2215457fb88c86a1e51b6f`.
+are included. Phase 19 was committed as `1c71e9bb2b792e65ea2215457fb88c86a1e51b6f`.
 
-The browser acceptance harness passes with Playwright installed into the
-ignored local node_modules directory. Phase 20 keeps polling disabled until the
-local environment opts in and the user starts it from the UI. No bot token,
-live Telegram account or transcription key was provided.
+The browser acceptance harness now runs with Playwright installed in the ignored
+local `node_modules` folder. Test endpoints mock remote Telegram/document
+actions; Python tests use mocked bot transport and real locally generated PDFs.
+No Telegram token or provider key was supplied.
 
 ## Full checkpoint SHAs
 
@@ -72,14 +70,17 @@ live Telegram account or transcription key was provided.
 - Phase 16 Gmail: `dbde0592551981b85acb495727f6d1bc1cb3e1bb`
 - Phase 17 Calendar: `eda74d3e5ec80552adfb9ca344e5b6f171cf985c`
 - Phase 18 Morning briefing: `38d6d7030054b62cb2d295f13740ea1b35367c01`
+- Phase 19 Long-term Memory: `1c71e9bb2b792e65ea2215457fb88c86a1e51b6f`
+- Phase 20 Telegram Remote Jarvis: `0c483dc097ae30d408512ea6214c2c5df663f34a`
+- Phase 21 Invoice / Document Automation: final SHA recorded in the sibling `../FINAL_HANDOFF.md`.
 
-## Phase 18 baseline validation (historical)
+## Final validation
 
-- Python 3.11 project environment: **55/55 tests passed, zero skips**.
+- Python 3.11 project environment: **84/84 tests passed**.
 - Actual OpenAI SDK 2.54.0 serialization/parsing tested over mocked HTTP.
 - Actual pypdf 6.19.0 extraction tested with generated PDF text.
 - `pip check` green; compilation and diff whitespace checks green.
-- Original HOLO probe **before 26/26; after 26/26**, both props loaded.
+- Original HOLO probe **26/26**, both props loaded.
 - Browser acceptance: simulation hands, camera-free startup, search/graph focus,
   source reader, selected summaries, follow-ups, expand/collapse, typing isolation,
   mocked voice transcript, reindex, narrow viewport, research offline state and
@@ -92,31 +93,30 @@ live Telegram account or transcription key was provided.
   document count; Gmail mocked read/search/thread/summary/draft/reply/send flows;
   Calendar mocked today/tomorrow/search/availability and confirmed create,
   reschedule and cancel; briefing integration data, safe text rendering, manual
-  button and natural-language invocation, and no automatic startup request.
-  **Zero page errors.**
-- Windows launch.cmd successfully started server.py at http://localhost:4900 for Gmail
-  http://localhost:4901 for Calendar and http://localhost:4903 for the briefing.
+  button and natural-language invocation, and no automatic startup request;
+  personal memory create/search/provenance/edit/forget; Telegram disabled state;
+  invoice details and PDF preview; document pin, share approval/revocation and
+  dismissal; report creation. **Zero page errors.**
+- Windows `launch.cmd` started `server.py`; health endpoint and browser acceptance
++  passed on isolated port 64117 with temporary data.
+- Phase 20 commit: `0c483dc097ae30d408512ea6214c2c5df663f34a`.
+- Phase 21 committed; see the final SHA in the sibling `../FINAL_HANDOFF.md`.
 - Sample index: eight documents/chunks/entities/edges; no extraction errors.
 - No key/live API call, microphone recording, webcam test or external message.
 - vendor/, props/ and sample-notes/ unchanged. Private runtime data remain ignored.
 
-## Phase 20 validation
-
-- Python environment: **73/73 tests passed**; compile, `pip check` and diff checks are green.
-- Original HOLO probe: **26/26**; simulation and camera-free startup pass.
-- `launch.cmd` started the app; `/api/health` reports `ok: true`, with no camera or microphone requirement.
-- Browser acceptance passes for existing flows, opt-in Telegram disabled state, and personal-memory CRUD; zero page errors.
-- Remote bot polling, voice transcription and Telegram file sending use mocks; no bot token or live message was used.
-
 ## Exact continuation point
 
-Phase 20 is validated and ready to commit. Then continue only with **Phase 21 —
-Invoice / Document Automation**. Do not redo Phases 0–20. Use ReportLab for
-local structured PDF invoices, reports, summaries and letters; collect missing
-invoice fields; add preview and artifact card actions; permit Telegram transfer
-only after local approval and in-chat confirmation. Run the full Python suite,
-original HOLO probe, `launch.cmd` and browser acceptance, update this file, make
-the Phase 21 commit, and stop. Do not proceed to Phase 22.
+Phases 0–21 are complete for this run. There is no next coding phase in this
+handoff: stop after Phase 21 as requested. The final Phase 21 commit SHA is
+recorded in the sibling `../FINAL_HANDOFF.md`. Do not proceed to Phase 22 or
+redo Phases 0–18.
+
+The only pending checks require the user's own accounts or physical hardware:
+Telegram bot token and user allowlist; optional OpenAI key for voice-note
+transcription; Gmail/Calendar OAuth; physical microphone/acoustic echo; live
+screen vision; physical webcam; and live Windows foreground-app monitoring.
+Configure credentials locally only; never request them in chat.
 
 ## Known limits
 
@@ -128,8 +128,8 @@ Vector search scans active chunks; large-vault performance is not benchmarked.
 Graph view is bounded to 300 nodes, with focused search outside the first page.
 Edges are explicit MENTIONS with evidence, not inferred semantic facts. Summaries
 above 80k characters visibly declare partial coverage. Reindex is startup/manual.
-Deleted sources retain local tombstoned history; personal-memory forget creates
-a source tombstone. Telegram live access awaits user-local bot setup. Browser voice may be online and requires local hardware
+Deleted sources retain local tombstoned history; personal-memory forget is
+implemented with a source tombstone. Browser voice may be online and requires local hardware
 acceptance. Browser recognition supplies interim text and endpointing; dedicated
 VAD and real microphone/acoustic echo acceptance remain pending. The video
 could not be retrieved; validation uses the supplied written specification.

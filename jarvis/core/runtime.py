@@ -1,5 +1,5 @@
 """Application lifetime owner, created once by server.main()."""
-from .context import Context, Sessions
+from .context import Sessions
 from pathlib import Path
 import os
 from jarvis.memory.database import Database
@@ -17,8 +17,10 @@ from jarvis.integrations.calendar import CalendarAdapter
 from jarvis.briefing import MorningBriefing
 from jarvis.memory.long_term import LongTermMemory
 from jarvis.integrations.telegram import TelegramAdapter
+from .context import Context
 from .state import StateMachine
 from io import BytesIO
+from jarvis.documents import DocumentAutomation
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -38,10 +40,14 @@ class Runtime:
         self.calendar = CalendarAdapter()
         self.briefing = MorningBriefing(self.database,self.gmail,self.calendar,self.focus)
         self.long_term_memory=LongTermMemory(self.database)
-        self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research,self.long_term_memory)
+        data_dir=Path(os.environ.get('JARVIS_DATA_DIR', str(Path(root)/'data')))
+        self.documents=DocumentAutomation(self.database,data_dir)
+        self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research,self.long_term_memory,self.documents)
         self._telegram_sessions={}
-        transcriber=self._transcribe_telegram_voice if self.brain.enabled else None
-        self.telegram=TelegramAdapter(on_text=self._telegram_chat,transcriber=transcriber)
+        transcriber=None
+        if self.brain.enabled:
+            transcriber=self._transcribe_telegram_voice
+        self.telegram=TelegramAdapter(on_text=self._telegram_chat,transcriber=transcriber,artifact_provider=self.documents.telegram_artifact)
 
     def health(self):
         return {'ok': True, 'service': 'Jarvis', 'camera_required': False,
@@ -58,6 +64,13 @@ class Runtime:
         if method == 'GET' and path == '/api/integrations/telegram': return self.telegram.status()
         if method == 'POST' and path == '/api/telegram/start': return self.telegram.start()
         if method == 'POST' and path == '/api/telegram/stop': return self.telegram.stop()
+        if method == 'GET' and path == '/api/documents': return self.documents.list_documents()
+        if method == 'POST' and path == '/api/documents/invoice/prepare': return self.documents.prepare_invoice(data)
+        if method == 'POST' and path == '/api/documents/invoice/create': return self.documents.create_invoice(data)
+        if method == 'POST' and path == '/api/documents/create':
+            return self.documents.create_document(data.get('kind'),data.get('title'),data.get('content'),data.get('source_ids'))
+        if method == 'POST' and path == '/api/documents/action':
+            return self.documents.action(data.get('id'),data.get('action'),data.get('confirmation'))
         if method == 'POST' and path == '/api/briefing/morning': return self.briefing.run()
         if method == 'GET' and path == '/api/personal-memory':
             memory_id=query.get('id',[''])[0]

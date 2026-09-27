@@ -213,7 +213,24 @@ Do not put bot tokens in chat, source files, notes, or screenshots.
 
 Voice notes are downloaded in memory, capped at 10 MB, transcribed only when a
 local OpenAI key is configured, and discarded after the reply. Telegram does
-not access the H.O.L.O camera or activate browser microphone listening. File
-sharing is limited to Jarvis generated artifacts and requires a local approval
-plus an exact `SHARE <document-id>` reply in Telegram (the artifact registry is
-completed in Phase 21).
+not access the H.O.L.O camera or activate browser microphone listening. Generated
+file sharing requires both local approval on the document card and an exact
+`SHARE <document-id>` reply in Telegram; files outside Jarvis's generated
+document registry are never eligible.
+
+## Invoice and document PDFs (Phase 21)
+
+Install project dependencies using `requirements-lock.txt`. The **New invoice**
+card collects seller and customer names/addresses, line-item description,
+quantity, currency and unit price before generating anything. Tax is optional
+and is never inferred. A natural-language request such as “Create an invoice for
+Company X for ₹25,000 for app development” fills the customer, amount and item,
+then asks for missing business and customer details before PDF creation. The
+invoice is rendered locally with a unique invoice number and stored under the
+Jarvis data directory's `generated` folder. Reports, summaries and letters use
+the same PDF renderer; the currently selected indexed note is recorded as a
+source when one is selected.
+
+Every generated PDF card offers preview/open, save a copy, pin and dismiss.
+Telegram sharing is off by default and requires local approval plus in-chat
+confirmation. No invoice, report, summary or letter is sent automatically.

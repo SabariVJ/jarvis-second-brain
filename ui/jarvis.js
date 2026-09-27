@@ -65,9 +65,37 @@ async function boot(){
       </section>
       <section id="telegram-card" aria-label="Telegram remote Jarvis">
         <h3>TELEGRAM REMOTE JARVIS <span id="telegram-state" class="sub">CHECKING</span></h3>
-        <div class="sub">Opt-in polling. Only private messages from locally allowlisted user IDs are processed. Voice notes require local transcription setup. File sharing will require local approval and a second confirmation in Telegram.</div>
+        <div class="sub">Opt-in polling. Only private messages from locally allowlisted user IDs are processed. Voice notes require local transcription setup. Document sharing requires local approval and a second confirmation in Telegram.</div>
         <div class="j-row"><button id="telegram-start" type="button" disabled>Start remote Jarvis</button><button id="telegram-stop" type="button" disabled>Stop remote Jarvis</button><button id="telegram-refresh" type="button">Refresh status</button></div>
         <small id="telegram-detail" class="sub" role="status" aria-live="polite"></small>
+      </section>
+      <section id="document-tools" aria-label="Invoice and document automation">
+        <h3>DOCUMENT AUTOMATION</h3>
+        <div class="sub">Generated PDFs are saved locally. Jarvis will not send them externally without your approval.</div>
+        <div class="j-row"><button id="document-toggle" type="button" aria-expanded="false">New invoice</button><button id="generic-toggle" type="button">New report, summary or letter</button></div>
+        <form id="invoice-form" hidden>
+          <h4>Invoice details</h4>
+          <div class="focus-fields"><label class="sub">Your business<input id="invoice-seller-name" maxlength="200"></label><label class="sub">Business address<input id="invoice-seller-address" maxlength="1000"></label></div>
+          <input id="invoice-seller-email" maxlength="320" placeholder="Business email (optional)">
+          <div class="focus-fields"><label class="sub">Customer<input id="invoice-customer-name" maxlength="200"></label><label class="sub">Customer address<input id="invoice-customer-address" maxlength="1000"></label></div>
+          <input id="invoice-customer-email" maxlength="320" placeholder="Customer email (optional)">
+          <div class="focus-fields"><label class="sub">Currency<input id="invoice-currency" maxlength="3" value="INR"></label><label class="sub">Invoice no. (optional)<input id="invoice-number" maxlength="40"></label></div>
+          <div class="focus-fields"><label class="sub">Invoice date<input id="invoice-date" type="date"></label><label class="sub">Due date (optional)<input id="invoice-due" type="date"></label></div>
+          <label class="sub">Line item description<input id="invoice-item-description" maxlength="500"></label>
+          <div class="focus-fields"><label class="sub">Quantity<input id="invoice-quantity" type="number" min="0.0001" step="any" value="1"></label><label class="sub">Unit price<input id="invoice-unit-price" type="number" min="0" step="0.01"></label></div>
+          <label class="sub">Tax rate percent (optional; never inferred)<input id="invoice-tax" type="number" min="0" max="100" step="any"></label>
+          <div class="j-row"><button type="submit">Review and create PDF</button><button id="invoice-cancel" type="button">Cancel</button></div>
+          <small id="invoice-state" class="sub" role="status" aria-live="polite"></small>
+        </form>
+        <form id="generic-document-form" hidden>
+          <h4>Report, summary or letter</h4>
+          <select id="document-kind" aria-label="Document type"><option value="report">Report</option><option value="summary">Summary</option><option value="letter">Letter</option></select>
+          <input id="document-title" maxlength="200" placeholder="Document title">
+          <textarea id="document-content" maxlength="100000" rows="5" placeholder="Document content"></textarea>
+          <small id="document-sources" class="sub">The selected indexed note will be listed as a source when available.</small>
+          <button type="submit">Create PDF</button>
+        </form>
+        <div id="document-cards" role="list" aria-live="polite"></div>
       </section>
       <div class="j-row"><button id="j-index">Reindex notes</button><button id="j-embed" hidden>Build semantic index</button><span class="sub" id="j-count"></span></div>
     </aside>
@@ -224,6 +252,54 @@ async function boot(){
   $('telegram-start').onclick=async()=>{try{await api('/api/telegram/start',{});await refreshTelegram()}catch(error){$('telegram-state').textContent='NOT CONNECTED';$('telegram-detail').textContent=error.message}};
   $('telegram-stop').onclick=async()=>{try{await api('/api/telegram/stop',{});await refreshTelegram()}catch(error){showError(error)}};
   await refreshTelegram();
+  function fillInvoice(data){
+    const seller=data.seller||{},customer=data.customer||{},item=(data.items||[])[0]||{};
+    for(const [id,value] of [['invoice-seller-name',seller.name],['invoice-seller-address',seller.address],['invoice-seller-email',seller.email],
+      ['invoice-customer-name',customer.name],['invoice-customer-address',customer.address],['invoice-customer-email',customer.email],
+      ['invoice-currency',data.currency||'INR'],['invoice-number',data.invoice_number],['invoice-date',data.invoice_date],['invoice-due',data.due_date],
+      ['invoice-item-description',item.description],['invoice-quantity',item.quantity||'1'],['invoice-unit-price',item.unit_price],['invoice-tax',item.tax_rate]])$(id).value=value||'';
+    $('invoice-form').hidden=false;$('generic-document-form').hidden=true;$('document-toggle').setAttribute('aria-expanded','true');
+    $('invoice-state').textContent=(data.missing_fields||[]).length?'Complete: '+data.missing_fields.join(', '):'Review the details. Jarvis will not infer taxes or send this invoice.';
+    $('invoice-seller-name').focus();
+  }
+  $('document-toggle').onclick=()=>{const opening=$('invoice-form').hidden&&$('generic-document-form').hidden;
+    $('invoice-form').hidden=!opening;$('generic-document-form').hidden=true;$('document-toggle').setAttribute('aria-expanded',String(opening));};
+  $('generic-toggle').onclick=()=>{$('generic-document-form').hidden=!$('generic-document-form').hidden;$('invoice-form').hidden=true;
+    $('document-toggle').setAttribute('aria-expanded','false')};
+  $('invoice-cancel').onclick=()=>{$('invoice-form').hidden=true;$('invoice-state').textContent='Invoice form closed.';$('document-toggle').setAttribute('aria-expanded','false')};
+  function generatedDocument(card){
+    let el=[...$('document-cards').children].find(x=>x.dataset.id===card.id);
+    if(!el){el=document.createElement('article');el.className='document-card';el.dataset.id=card.id;$('document-cards').prepend(el)}
+    el.replaceChildren();const title=document.createElement('h4');title.textContent=card.title;
+    const meta=document.createElement('small');meta.textContent=`${card.kind.toUpperCase()} · ${new Date(card.created_at*1000).toLocaleString()} · ${card.filename}`;
+    const summary=document.createElement('p');summary.textContent=card.summary;
+    if(card.source_ids?.length){const refs=document.createElement('small');refs.textContent='Source notes: '+card.source_ids.join(', ');el.append(title,meta,summary,refs)}else el.append(title,meta,summary);
+    const controls=document.createElement('div');controls.className='j-row';
+    const open=document.createElement('button');open.textContent='Open PDF';open.onclick=()=>window.open(card.preview_url,'_blank','noopener,noreferrer');
+    const preview=document.createElement('button');preview.textContent='Preview';preview.onclick=()=>{let frame=el.querySelector('iframe');if(frame){frame.remove();preview.textContent='Preview';return}
+      frame=document.createElement('iframe');frame.title='Generated PDF preview';frame.src=card.preview_url;el.append(frame);preview.textContent='Hide preview'};
+    const pin=document.createElement('button');pin.textContent=card.pinned?'Unpin':'Pin';pin.onclick=async()=>{const result=await api('/api/documents/action',{id:card.id,action:card.pinned?'unpin':'pin'});generatedDocument(result)};
+    const save=document.createElement('button');save.textContent='Save copy';save.onclick=()=>window.open(card.preview_url+'&download=1','_blank','noopener,noreferrer');
+    const share=document.createElement('button');share.textContent=card.share_approved?'Revoke Telegram approval':'Approve Telegram sharing';
+    share.onclick=async()=>{if(card.share_approved){generatedDocument(await api('/api/documents/action',{id:card.id,action:'revoke_share'}));return}
+      if(!confirm(`Approve this PDF for the allowlisted Telegram bot? It will still require a separate confirmation in Telegram.`))return;
+      generatedDocument(await api('/api/documents/action',{id:card.id,action:'approve_share',confirmation:'APPROVE SHARE '+card.id}))};
+    const dismiss=document.createElement('button');dismiss.textContent='Dismiss card';dismiss.onclick=async()=>{await api('/api/documents/action',{id:card.id,action:'dismiss'});el.remove()};
+    controls.append(open,preview,pin,save,share,dismiss);el.append(controls);
+  }
+  async function loadDocuments(){const result=await api('/api/documents');$('document-cards').replaceChildren();for(const card of result.items||[])generatedDocument(card)}
+  $('invoice-form').onsubmit=async e=>{e.preventDefault();$('invoice-state').textContent='Creating PDF…';
+    const data={seller:{name:$('invoice-seller-name').value,address:$('invoice-seller-address').value,email:$('invoice-seller-email').value},
+      customer:{name:$('invoice-customer-name').value,address:$('invoice-customer-address').value,email:$('invoice-customer-email').value},
+      currency:$('invoice-currency').value,invoice_number:$('invoice-number').value,invoice_date:$('invoice-date').value,due_date:$('invoice-due').value,
+      items:[{description:$('invoice-item-description').value,quantity:$('invoice-quantity').value,unit_price:$('invoice-unit-price').value,tax_rate:$('invoice-tax').value}],source_ids:selected?[selected]:[]};
+    try{const card=await api('/api/documents/invoice/create',data);generatedDocument(card);$('invoice-state').textContent='PDF saved locally. Review its preview before sharing.';await refreshTelegram()}
+    catch(error){$('invoice-state').textContent=error.message}};
+  $('generic-document-form').onsubmit=async e=>{e.preventDefault();
+    try{const card=await api('/api/documents/create',{kind:$('document-kind').value,title:$('document-title').value,content:$('document-content').value,source_ids:selected?[selected]:[]});
+      generatedDocument(card);entry('PDF saved locally. Review the preview before sharing.');}
+    catch(error){showError(error)}};
+  await loadDocuments();
   try{for(const card of (await api('/api/research/cards?session_id='+encodeURIComponent(sid))).cards)researchCard(card)}catch(e){showError(e)}
   $('brain-toggle').onclick=()=>{$('galaxy').hidden=!$('galaxy').hidden;$('brain-toggle').setAttribute('aria-expanded',String(!$('galaxy').hidden))};
   async function stopSpeech(interrupted=false){speechToken++;clearTimeout(speechEndTimer);speechEndTimer=null;
@@ -295,6 +371,7 @@ async function boot(){
     try{const result=await api('/api/jarvis/chat',{session_id:sid,message,selected_id:selected,spoken:$('j-speak').checked});
       entry(result.answer,'assistant',result.sources,result.warning);status('IDLE · '+result.mode.toUpperCase());
       if(result.research_card)researchCard(result.research_card);
+      if(result.document_action?.kind==='invoice_prepare')fillInvoice(result.document_action.draft);
       if(result.sources[0]){selected=result.sources[0].document_id;$('j-selection').textContent='Selected: '+result.sources[0].title}
       if(result.node_ids.length){$('galaxy').hidden=false;$('brain-toggle').setAttribute('aria-expanded','true');
         if(galaxy&&!galaxy.meshes.has(result.node_ids[0]))galaxy.setData(await api('/api/graph?focus='+encodeURIComponent(result.node_ids[0])));

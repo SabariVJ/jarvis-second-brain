@@ -12,6 +12,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     let calendarAuth={state:'NOT CONNECTED',connected:false},calendarCalls=[];
     let briefingCalls=0;
     let personalMemories=[],memoryCalls=[];
+    let documentCards=[],documentCalls=[],documentSequence=0,invoiceCreateBody=null;
     let focusState={state:'IDLE',monitor_supported:true,warning:null},focusCalls=[];
     const focusRoute=async route=>{
       const url=new URL(route.request().url()),action=url.pathname.split('/').pop();
@@ -23,8 +24,6 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(focusState)});
     };
     await page.route('**/api/focus',focusRoute);await page.route('**/api/focus/**',focusRoute);
-    await page.route('**/api/integrations/telegram',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
-      state:'DISABLED',enabled:false,configured:false,running:false,allowed_user_count:0,voice_notes:'NOT CONNECTED',sharing:'LOCAL APPROVAL REQUIRED'})}));
     await page.route('**/api/personal-memory**',async route=>{
       const url=new URL(route.request().url()),method=route.request().method(),body=method==='POST'?route.request().postDataJSON():{};
       memoryCalls.push({method,path:url.pathname,body});
@@ -38,6 +37,27 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
       if(url.pathname.endsWith('/remember')){const item={id:'mem_fixture',category:'PREFERENCE',content:body.content,importance:.8,source_type:body.source_type};personalMemories=[item];return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(item)})}
       if(url.pathname.endsWith('/update')){personalMemories[0]={...personalMemories[0],content:body.content,source_type:'user_update'};return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(personalMemories[0])})}
       if(url.pathname.endsWith('/forget')){personalMemories=[];return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({forgotten:true,id:body.id})})}
+      return route.fulfill({status:404,contentType:'application/json',body:'{}'});
+    });
+    await page.route('**/api/integrations/telegram',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+      state:'DISABLED',enabled:false,configured:false,running:false,allowed_user_count:0,voice_notes:'NOT CONNECTED',sharing:'LOCAL APPROVAL REQUIRED'})}));
+    await page.route('**/api/documents**',async route=>{
+      const url=new URL(route.request().url()),method=route.request().method(),path=url.pathname,body=method==='POST'?route.request().postDataJSON():{};
+      documentCalls.push({method,path,body});
+      if(path.endsWith('/file'))return route.fulfill({status:200,contentType:'application/pdf',body:Buffer.from('%PDF-1.4\nmock\n%%EOF')});
+      if(method==='GET')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:documentCards.filter(x=>x.status==='active')})});
+      if(path.endsWith('/invoice/create')){invoiceCreateBody=body;documentSequence++;
+        const id='doc_'+String(documentSequence).padStart(32,'0'),item={id,kind:'invoice',title:'Invoice INV-FIXTURE · '+body.customer.name,
+          filename:'invoice_fixture.pdf',summary:'Invoice for '+body.customer.name+' · '+body.currency+' 25000.00',created_at:1790000000,
+          source_ids:body.source_ids||[],invoice:body,share_approved:false,pinned:false,status:'active',preview_url:'/api/documents/file?id='+id};
+        documentCards.unshift(item);return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({...item,created:true})})}
+      if(path.endsWith('/create')){documentSequence++;const id='doc_'+String(documentSequence).padStart(32,'0'),item={id,kind:body.kind,title:body.title,
+        filename:'report_fixture.pdf',summary:body.content,created_at:1790000000,source_ids:body.source_ids||[],share_approved:false,pinned:false,status:'active',preview_url:'/api/documents/file?id='+id};
+        documentCards.unshift(item);return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(item)})}
+      if(path.endsWith('/action')){const item=documentCards.find(x=>x.id===body.id);if(!item)return route.fulfill({status:404,contentType:'application/json',body:'{}'});
+        if(body.action==='dismiss')item.status='dismissed';if(body.action==='pin')item.pinned=true;if(body.action==='unpin')item.pinned=false;
+        if(body.action==='approve_share')item.share_approved=true;if(body.action==='revoke_share')item.share_approved=false;
+        return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(item)})}
       return route.fulfill({status:404,contentType:'application/json',body:'{}'});
     });
     await page.route('**/api/integrations/gmail',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(gmailAuth)}));
@@ -89,8 +109,6 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.waitForFunction(()=>window.__holo.gl());
     await page.waitForFunction(()=>window.__holo.hands.some(h=>h.present));
     await page.goto(base+'/');await page.waitForFunction(()=>!!window.jarvisUI);
-    assert.equal(await page.locator('#telegram-state').innerText(),'DISABLED');assert.equal(await page.locator('#telegram-start').isDisabled(),true);
-    assert.equal((await page.locator('#telegram-detail').innerText()).includes('token'),false);
     await page.waitForFunction(()=>document.querySelector('#personal-memory-results').textContent.includes('No saved personal memories'));
     await page.locator('#personal-memory-content').fill('<img src=x onerror=alert(1)>');await page.locator('#personal-memory-form button').click();
     await page.waitForFunction(()=>document.querySelector('.personal-memory-item'));
@@ -110,6 +128,34 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
     assert.equal(await page.locator('#gmail-state').innerText(),'NOT CONNECTED');assert.equal(await page.locator('#gmail-inbox').isDisabled(),true);
     assert.equal(await page.locator('#calendar-state').innerText(),'NOT CONNECTED');assert.equal(await page.locator('#calendar-create').isDisabled(),true);
+    assert.equal(await page.locator('#telegram-state').innerText(),'DISABLED');assert.equal(await page.locator('#telegram-start').isDisabled(),true);
+    assert.equal(await page.locator('#telegram-detail').innerText().then(x=>x.includes('token')),false);
+    await page.locator('#document-toggle').click();
+    await page.waitForFunction(()=>document.querySelector('#invoice-form')&&!document.querySelector('#invoice-form').hidden);
+    await page.locator('#invoice-customer-name').fill('Company X');await page.locator('#invoice-unit-price').fill('25000');
+    await page.locator('#invoice-item-description').fill('App development');
+    assert.equal(await page.locator('#invoice-customer-name').inputValue(),'Company X');
+    assert.equal(await page.locator('#invoice-unit-price').inputValue(),'25000');
+    assert.match(await page.locator('#invoice-item-description').inputValue(),/app development/i);
+    await page.locator('#invoice-seller-name').fill('North Star Studio');await page.locator('#invoice-seller-address').fill('42 Sample Road, Pune');
+    await page.locator('#invoice-customer-address').fill('11 Client Street, Mumbai');
+    await page.locator('#invoice-form button[type=submit]').click();
+    await page.waitForFunction(()=>document.querySelector('.document-card h4')?.textContent.includes('Company X'));
+    let invoiceId=await page.locator('.document-card').first().getAttribute('data-id');
+    assert.equal(invoiceCreateBody.customer.name,'Company X');assert.equal(invoiceCreateBody.items[0].unit_price,'25000');
+    const pdfCheck=await page.evaluate(async id=>{const r=await fetch('/api/documents/file?id='+encodeURIComponent(id));return {status:r.status,type:r.headers.get('content-type'),head:Array.from(new Uint8Array(await r.arrayBuffer()).slice(0,4))}},invoiceId);
+    assert.equal(pdfCheck.status,200);assert.equal(pdfCheck.type,'application/pdf');assert.deepEqual(pdfCheck.head,[37,80,68,70]);
+    await page.locator('.document-card button').nth(1).click();
+    await page.waitForFunction(()=>document.querySelector('.document-card iframe'));
+    const invoiceControls=page.locator('.document-card').first().locator('.j-row button');
+    await invoiceControls.nth(2).click();await page.waitForFunction(()=>document.querySelector('.document-card .j-row button:nth-child(3)')?.textContent==='Unpin');
+    await invoiceControls.nth(4).click();await page.waitForFunction(async id=>fetch('/api/documents').then(r=>r.json()).then(x=>x.items.find(i=>i.id===id)?.share_approved),invoiceId);
+    await page.locator('.document-card').first().locator('.j-row button').nth(4).click();
+    await page.waitForFunction(async id=>fetch('/api/documents').then(r=>r.json()).then(x=>!x.items.find(i=>i.id===id)?.share_approved),invoiceId);
+    await page.locator('#generic-toggle').click();await page.locator('#document-title').fill('Build report');await page.locator('#document-content').fill('The report body wraps safely.\n\nNext steps are clear.');
+    await page.locator('#generic-document-form button[type=submit]').click();await page.waitForFunction(()=>document.querySelectorAll('.document-card').length===2);
+    await page.locator('.document-card').first().locator('.j-row button').nth(5).click();
+    await page.waitForFunction(()=>document.querySelectorAll('.document-card').length===1);
     assert.equal(await page.locator('#briefing-status').innerText(),'NOT RUN');assert.equal(briefingCalls,0,'Briefing must not run automatically at startup');
     await page.locator('#briefing-run').click();await page.waitForFunction(()=>document.querySelector('#briefing-status').textContent.startsWith('READY'));
     assert.equal(briefingCalls,1);assert.match(await page.locator('#briefing-detail').innerText(),/Planning/);
@@ -187,7 +233,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     assert.equal(await page.locator('.research-sources a').first().getAttribute('rel'),'noopener noreferrer');
     await page.getByRole('button',{name:'Keep card'}).click();await page.waitForFunction(()=>document.querySelector('.research-card small').textContent.includes('PINNED'));
     await page.reload();await page.waitForFunction(()=>document.querySelector('.research-card small')?.textContent.includes('PINNED'));
-    await page.getByRole('button',{name:'Dismiss'}).click();await page.waitForFunction(()=>!document.querySelector('.research-card'));
+    await page.getByRole('button',{name:'Dismiss',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('.research-card'));
     let visionPayload=null,visionPosts=0;
     await page.route('**/api/vision/screen',async route=>{visionPosts++;visionPayload=route.request().postDataJSON();
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({answer:'The screen shows a local warning.',
@@ -242,7 +288,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.locator('#gmail-inbox').click();await page.waitForFunction(()=>document.querySelector('.gmail-item'));
     await page.locator('#gmail-unread').click();await page.locator('#gmail-query').fill('from:person@example.com');await page.locator('#gmail-search').click();
     assert.deepEqual(gmailCalls.slice(0,3).map(c=>c.body.mode),['inbox','unread','search']);
-    await page.getByRole('button',{name:'Open'}).click();await page.waitForFunction(()=>document.querySelector('#gmail-thread').textContent.includes('release deadline'));
+    await page.getByRole('button',{name:'Open',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#gmail-thread').textContent.includes('release deadline'));
     await page.getByRole('button',{name:'Summarize',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('Email summary: The deadline is Friday.'));
     await page.getByRole('button',{name:'Reply draft'}).click();await page.locator('#gmail-body').fill('Thank you for the update.');
     await page.locator('#gmail-create-draft').click();await page.waitForFunction(()=>document.querySelector('#gmail-draft-state').textContent.includes('Draft saved'));

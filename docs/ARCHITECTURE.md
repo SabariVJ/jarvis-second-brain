@@ -39,9 +39,21 @@ chat type and sender ID allowlisting before reading a message body or requesting
 a voice file. Voice files are bounded, kept in memory, passed to the configured
 transcription provider, and discarded. Telegram chat reuses the Jarvis
 orchestrator while suppressing automatic personal-memory capture; explicit
-remember commands retain Telegram provenance. Bot tokens never enter status data.
-Generated file sharing requires a later local artifact registry and a separate
-in-chat confirmation; arbitrary paths are not accepted.
+remember commands retain Telegram provenance. No arbitrary filesystem path is
+accepted. Sharing uses only registered generated PDFs with a separate local
+approval and an exact in-chat confirmation. Bot tokens never enter status data.
+
+## Local invoice and document generation (Phase 21)
+
+ReportLab renders invoices, reports, summaries and letters into the private
+Jarvis data directory. A structured SQLite registry stores the type, title,
+unique filename, hash, source note IDs, invoice details, sharing approval and
+card state. The UI preview route resolves registry IDs, enforces path
+containment and verifies the PDF hash before returning bytes. Invoice creation
+collects required seller/customer/line-item fields, validates decimal totals
+and only applies tax when explicitly supplied. Generation saves locally; it
+does not send or email documents. Telegram can only read artifacts approved by
+the local card.
 
 ## Runtime and trust
 

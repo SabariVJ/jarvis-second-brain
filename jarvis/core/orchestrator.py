@@ -5,10 +5,11 @@ from jarvis.ai.astra import local_summary
 from jarvis.tools import Registry, Tool
 
 class Orchestrator:
-    def __init__(self, database, retrieval, graph, brain, research=None, long_term_memory=None):
+    def __init__(self, database, retrieval, graph, brain, research=None, long_term_memory=None, document_service=None):
         self.database, self.retrieval, self.graph, self.brain = database,retrieval,graph,brain
         self.research = research
         self.long_term_memory=long_term_memory
+        self.document_service=document_service
         self.tools = Registry()
         self.tools.register(Tool('search_memory',0,{'query':str},retrieval.search))
         self.tools.register(Tool('read_document',0,{'doc_id':str},database.document))
@@ -51,6 +52,14 @@ class Orchestrator:
                 result = self._finish(data['answer'],[],[],state,'research',data['warning'])
                 result['research_card']=card
                 return result
+            if self.document_service and re.search(r'\b(?:create|make|prepare)\s+(?:an?\s+)?invoice\b',q):
+                draft=self.document_service.prepare_invoice_from_text(message)
+                state.transition('THINKING')
+                missing=draft['missing_fields']
+                answer=('I prepared the invoice details. Add: '+', '.join(missing)+'. The PDF will be saved only after you submit the completed form.'
+                    if missing else 'The invoice details are complete. Review them and confirm creation in the local document card.')
+                result=self._finish(answer,[],[],state,'document_draft',None)
+                result['document_action']={'kind':'invoice_prepare',**draft};return result
             memory_action=self._memory_action(message,context,state,origin)
             if memory_action is not None:return memory_action
             captured=None

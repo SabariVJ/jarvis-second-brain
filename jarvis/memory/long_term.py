@@ -1,6 +1,7 @@
 """Intentional, source-backed personal memories; external data cannot auto-save."""
 from datetime import datetime, timezone
 import hashlib
+import math
 import re
 import time
 import unicodedata
@@ -49,7 +50,9 @@ class LongTermMemory:
 
     @staticmethod
     def _validate_category(category,content):
-        category=(category or infer_category(content)).strip().upper()
+        category=infer_category(content) if category is None else category
+        if not isinstance(category,str):raise ValueError('Unsupported memory category')
+        category=category.strip().upper()
         if category not in CATEGORIES:raise ValueError('Unsupported memory category')
         return category
 
@@ -78,12 +81,12 @@ class LongTermMemory:
     def remember(self,content,category=None,source_type='user_explicit',source_reference='User explicitly asked Jarvis to remember this.',
         confidence=.95,importance=.8,expires_at=None):
         content=self._validate_content(content)
-        if source_type not in SOURCE_TYPES:raise ValueError('Memory provenance must be a user-authored source')
+        if not isinstance(source_type,str) or source_type not in SOURCE_TYPES:raise ValueError('Memory provenance must be a user-authored source')
         if not isinstance(source_reference,str) or not source_reference.strip() or len(source_reference)>240:
             raise ValueError('A concise provenance reference is required')
-        if not isinstance(confidence,(int,float)) or not 0<=confidence<=1:raise ValueError('Confidence must be between 0 and 1')
-        if not isinstance(importance,(int,float)) or not 0<=importance<=1:raise ValueError('Importance must be between 0 and 1')
-        if expires_at is not None and (not isinstance(expires_at,(int,float)) or expires_at<=self.clock()):
+        if not isinstance(confidence,(int,float)) or not math.isfinite(confidence) or not 0<=confidence<=1:raise ValueError('Confidence must be between 0 and 1')
+        if not isinstance(importance,(int,float)) or not math.isfinite(importance) or not 0<=importance<=1:raise ValueError('Importance must be between 0 and 1')
+        if expires_at is not None and (not isinstance(expires_at,(int,float)) or not math.isfinite(expires_at) or expires_at<=self.clock()):
             raise ValueError('Expiration must be a future timestamp')
         category=self._validate_category(category,content);normalized=normalize(content);now=self.clock();memory_id='mem_'+uuid.uuid4().hex
         with self.database.connect() as db:
@@ -100,7 +103,7 @@ class LongTermMemory:
             return {**self._item(row),'duplicate':False}
 
     def capture_significant(self,user_text):
-        if not isinstance(user_text,str) or len(user_text)>4000:return None
+        if not isinstance(user_text,str) or len(user_text)>2000:return None
         text=' '.join(user_text.strip().split())
         if text.endswith('?') or _CREDENTIALS.search(text):return None
         lower=text.casefold()
@@ -113,6 +116,7 @@ class LongTermMemory:
     def search(self,query='',category=None,limit=20):
         if not isinstance(query,str) or len(query)>300:raise ValueError('Memory search must be at most 300 characters')
         if category is not None:
+            if not isinstance(category,str):raise ValueError('Unsupported memory category')
             category=category.strip().upper()
             if category not in CATEGORIES:raise ValueError('Unsupported memory category')
         if not isinstance(limit,int) or not 1<=limit<=50:raise ValueError('Memory page size must be 1–50')
@@ -139,6 +143,7 @@ class LongTermMemory:
 
     def update(self,memory_id,content,category=None,source_reference='User explicitly corrected this memory.'):
         content=self._validate_content(content);normalized=normalize(content);now=self.clock()
+        if not isinstance(memory_id,str) or len(memory_id)>80:raise ValueError('Memory ID is invalid')
         if not isinstance(source_reference,str) or not source_reference.strip() or len(source_reference)>240:
             raise ValueError('A concise provenance reference is required')
         with self.database.connect() as db:

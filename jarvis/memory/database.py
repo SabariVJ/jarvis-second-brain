@@ -51,7 +51,15 @@ CREATE TABLE IF NOT EXISTS projects (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES sources(id));
 CREATE TABLE IF NOT EXISTS people (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES sources(id));
-PRAGMA user_version=2;
+CREATE TABLE IF NOT EXISTS generated_documents (
+ id TEXT PRIMARY KEY, kind TEXT NOT NULL, title TEXT NOT NULL, filename TEXT NOT NULL,
+ relative_path TEXT NOT NULL UNIQUE, sha256 TEXT NOT NULL, mime_type TEXT NOT NULL,
+ created_at REAL NOT NULL, invoice_number TEXT UNIQUE, source_ids TEXT NOT NULL DEFAULT '[]',
+ data_json TEXT NOT NULL DEFAULT '{}', summary TEXT NOT NULL DEFAULT '',
+ share_approved INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0,
+ status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','dismissed')));
+CREATE INDEX IF NOT EXISTS generated_documents_latest ON generated_documents(status,created_at DESC);
+PRAGMA user_version=3;
 '''
 
 class Database:
@@ -60,7 +68,7 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version > 2: raise ValueError('Database schema is newer than this application')
+            if version > 3: raise ValueError('Database schema is newer than this application')
             db.executescript(SCHEMA)
             columns={row['name'] for row in db.execute('PRAGMA table_info(memories)')}
             additions={
@@ -79,7 +87,7 @@ class Database:
             db.execute('UPDATE memories SET updated_at=created WHERE updated_at=0')
             db.execute('CREATE INDEX IF NOT EXISTS memory_active_category ON memories(status,category,updated_at DESC)')
             db.execute('CREATE INDEX IF NOT EXISTS memory_normalized ON memories(normalized)')
-            db.execute('PRAGMA user_version=2')
+            db.execute('PRAGMA user_version=3')
 
     @contextmanager
     def connect(self):

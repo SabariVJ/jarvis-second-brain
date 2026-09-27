@@ -176,3 +176,21 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(json.loads(self.request('/api/telegram/stop',{})[1])['state'],'STOPPING')
         server.RUNTIME.telegram.start.assert_called_once_with()
         server.RUNTIME.telegram.stop.assert_called_once_with()
+
+    def test_invoice_draft_and_pdf_routes_create_local_file_only_after_complete_details(self):
+        self.assertEqual(json.loads(self.request('/api/documents')[1])['items'],[])
+        sid=json.loads(self.request('/api/jarvis/session',{})[1])['session_id']
+        response=json.loads(self.request('/api/jarvis/chat',{'session_id':sid,
+            'message':'Jarvis, create an invoice for Company X for ₹25,000 for app development.'})[1])
+        self.assertEqual(response['mode'],'document_draft')
+        self.assertIn('Your business name',response['document_action']['missing_fields'])
+        self.assertEqual(json.loads(self.request('/api/documents')[1])['items'],[])
+        invoice={'seller':{'name':'Studio','address':'42 North Road'},'customer':{'name':'Company X','address':'11 Main Street'},
+            'currency':'INR','invoice_number':'INV-HTTP-1','items':[{'description':'App development','quantity':'1','unit_price':'25000'}]}
+        status,raw=self.request('/api/documents/invoice/create',invoice)
+        self.assertEqual(status,200);card=json.loads(raw);self.assertTrue(card['created'])
+        self.assertEqual(self.request('/api/documents/action',{'id':card['id'],'action':'approve_share'})[0],400)
+        self.assertEqual(self.request('/api/documents/action',{'id':card['id'],'action':'approve_share',
+            'confirmation':'APPROVE SHARE '+card['id']})[0],200)
+        status,pdf=self.request(card['preview_url'])
+        self.assertEqual(status,200);self.assertTrue(pdf.startswith(b'%PDF'))

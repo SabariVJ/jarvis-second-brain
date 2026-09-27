@@ -1,3 +1,4 @@
 # Optional integrations; core HOLO and local text indexing need only Python 3.11+.
 openai>=2.0,<3
 pypdf>=6,<7
+reportlab>=4.4,<5
