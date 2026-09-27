@@ -61,6 +61,13 @@
 .visual-card{border:1px solid #31534c;border-radius:8px;padding:8px;overflow-wrap:anywhere}.visual-card small{display:block;color:#99bdb2;margin:4px 0}
 .visual-card pre{white-space:pre-wrap;max-height:180px;overflow:auto;font:10px/1.4 ui-monospace,monospace;color:#d5e8e2;margin:5px 0}
 .visual-card pre[hidden]{display:none}
+#settings-card{border:1px solid #4c6379;border-radius:12px;background:#101720;padding:10px;display:flex;flex-direction:column;gap:7px}
+#settings-card h3{font:11px ui-monospace,monospace;letter-spacing:.1em;color:#bdd9ff;margin:0}
+#settings-items{display:grid;grid-template-columns:1fr 1fr;gap:5px;max-height:310px;overflow:auto}
+.setting-item{border:1px solid #334352;border-radius:7px;padding:6px;min-width:0}.setting-item strong{font:10px ui-monospace,monospace;display:block}
+.setting-item small{display:block;color:#aab7c4;margin-top:4px}.setting-state{display:inline-block;margin-top:4px;font:9px ui-monospace,monospace;color:#a6e7d1}
+.setting-state.action-required,.setting-state.error{color:#ffc19d}.setting-state.disabled{color:#a5aab1}
+#settings-diagnostics{white-space:pre-wrap;max-height:140px;overflow:auto;margin:0;font:9px/1.4 ui-monospace,monospace;color:#aebdcc}
 .focus-fields{display:grid;grid-template-columns:90px 1fr;gap:6px}
 .focus-fields input{padding:7px!important}
 .j-entry{padding:12px 0;border-bottom:1px solid #284038}

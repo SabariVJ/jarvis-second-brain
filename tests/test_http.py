@@ -36,7 +36,7 @@ class HTTPTests(unittest.TestCase):
         except HTTPError as e:return e.code,e.read()
 
     def test_baseline_and_memory_chat_flow(self):
-        for route in ['/','/?sim=1','/?probe=1','/api/tree','/api/state','/api/health','/api/memory/status','/api/graph']:
+        for route in ['/','/?sim=1','/?probe=1','/api/tree','/api/state','/api/health','/api/memory/status','/api/graph','/api/settings/status']:
             self.assertEqual(self.request(route)[0],200,route)
         self.assertEqual(self.request('/api/state',{'event':'grab','card':'voice'})[0],200)
         self.assertEqual(json.loads(self.request('/api/state')[1])['card'],'voice')
@@ -47,6 +47,11 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request('/api/jarvis/context',{'session_id':sid,'document_id':did})[0],200)
         self.assertIn('Local extract',json.loads(self.request('/api/jarvis/chat',{'session_id':sid,'message':'summarize this'})[1])['answer'])
         self.assertEqual(self.request('/api/jarvis/chat',{'message':'no session'})[0],400)
+        settings=json.loads(self.request('/api/settings/status')[1]);names={item['name'] for item in settings['integrations']}
+        self.assertTrue({'OPENAI / ASTRA','SECOND BRAIN','VOICE','WAKE WORD','SCREEN','CAMERA','FOCUS LOCK','GMAIL',
+            'CALENDAR','TELEGRAM','WINDOWS TOOLS','AUTOMATIONS'}.issubset(names))
+        self.assertTrue(settings['diagnostics']['database_healthy'])
+        self.assertNotIn('OPENAI_API_KEY',json.dumps(settings));self.assertNotIn('TELEGRAM_BOT_TOKEN',json.dumps(settings))
 
     def test_spatial_context_events_resolve_notes_and_reject_injection(self):
         sid=json.loads(self.request('/api/jarvis/session',{})[1])['session_id']

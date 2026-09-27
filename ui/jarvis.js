@@ -33,6 +33,10 @@ async function boot(){
       </section>
       <section id="saved-card-panel" aria-label="Persistent H.O.L.O cards"><h3>H.O.L.O CARDS <span class="sub">TEMPORARY ITEMS ARE SAVED ONLY ON REQUEST</span></h3>
         <div id="saved-card-results" role="list" aria-live="polite"></div></section>
+      <section id="settings-card" aria-label="Integrations and settings"><h3>INTEGRATIONS / SETTINGS <span id="settings-overall" class="sub">CHECKING</span></h3>
+        <div class="j-row"><button id="settings-refresh" type="button">Refresh diagnostics</button><button id="settings-save-card" type="button">Save system status card</button></div>
+        <div id="settings-items" role="list" aria-live="polite"></div><small id="settings-guide" class="sub"></small><pre id="settings-diagnostics" class="sub"></pre>
+      </section>
       <div class="j-row"><button id="j-screen">Explain current screen once</button><span id="j-screen-state" class="sub" role="status" aria-live="polite">SCREEN OFF</span></div>
       <div class="j-row"><button id="j-eyes">Look at this once</button><span id="j-camera-state" class="sub" role="status" aria-live="polite">CAMERA READY</span></div>
       <section id="focus-card" aria-label="H.O.L.O Focus Lock">
@@ -176,8 +180,22 @@ async function boot(){
     try{await api('/api/cards/save',{card_type,title,payload,source_id});await loadVisualCards();entry('Saved '+card_type+' card to this device.')}
     catch(error){entry(error.message||'Card could not be saved.','assistant')}
   }
+  let settingsSnapshot=null;
+  async function refreshSettings(){const result=await api('/api/settings/status');settingsSnapshot=result;const host=$('settings-items');host.replaceChildren();
+    let needsAction=0,errors=0;
+    for(const item of result.integrations||[]){if(item.status==='ACTION REQUIRED')needsAction++;if(item.status==='ERROR')errors++;
+      const row=document.createElement('article');row.className='setting-item';const name=document.createElement('strong');name.textContent=item.name;
+      const badge=document.createElement('span');badge.className='setting-state '+item.status.toLowerCase().replaceAll(' ','-');badge.textContent=item.status;
+      const detail=document.createElement('small');detail.textContent=item.detail;row.append(name,badge,detail);host.append(row)}
+    $('settings-overall').textContent=errors?'ERROR':needsAction?`${needsAction} ACTION REQUIRED`:'READY';
+    $('settings-guide').textContent=result.setup_guide;$('settings-diagnostics').textContent=JSON.stringify(result.diagnostics,null,2);
+  }
+  $('settings-refresh').onclick=()=>refreshSettings().catch(showError);
+  $('settings-save-card').onclick=()=>{const snap=settingsSnapshot;if(!snap)return;saveVisualCard('SYSTEM','Integration status',{
+    status:$('settings-overall').textContent,summary:snap.integrations.map(x=>x.name+': '+x.status).join(' · '),created_at:Date.now()},'settings-status')};
   refreshApprovals().catch(()=>{});setInterval(()=>refreshApprovals().catch(()=>{}),5000);
   loadVisualCards().catch(()=>{});
+  refreshSettings().catch(()=>{$('settings-overall').textContent='ERROR'});
   function researchCard(card){
     let el=[...$('research-cards').children].find(x=>x.dataset.id===card.id);
     if(!el){el=document.createElement('article');el.className='research-card';el.dataset.id=card.id;$('research-cards').prepend(el)}

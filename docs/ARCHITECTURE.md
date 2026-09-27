@@ -245,6 +245,17 @@ expanded, pinned, dismissed or removed; dismissed cards remain recoverable until
 removed. Their content is rendered as text. Only suitable summaries and
 references are accepted for email, Calendar and approval cards.
 
+## Phase 26: Integrations and settings
+
+`GET /api/settings/status` exposes a fixed, secret-free status summary for
+Astra, SQLite/indexing, browser voice and wake, screen vision, optional camera,
+Focus Lock, Gmail, Calendar, Telegram, Windows tools and automations. It runs a
+SQLite quick check and reports active indexed-source count. Browser microphone
+and camera availability are checked only after a user gesture; server startup
+never probes hardware. Provider configuration is represented by state and
+setup guidance, never credential values. Unsupported features are labeled as
+requiring setup or disabled rather than presented as connected.
+
 ## Phase 15: Focus Lock
 
 Focus Lock starts only after the user presses Start or asks for a focus session.

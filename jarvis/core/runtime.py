@@ -153,6 +153,40 @@ class Runtime:
                 'microphone_required': False, 'mode': 'configured' if self.brain.enabled else 'local',
                 'model':self.brain.model, 'embeddings_enabled':self.embeddings.enabled}
 
+    def settings_status(self):
+        try:
+            with self.database.connect() as db:
+                database_ok=db.execute('PRAGMA quick_check').fetchone()[0]=='ok'
+                sources=db.execute("SELECT count(*) FROM sources WHERE status='active'").fetchone()[0]
+            database_state='CONNECTED' if database_ok else 'ERROR'
+        except Exception:database_state='ERROR';database_ok=False;sources=0
+        gmail=self.gmail.status();calendar=self.calendar.status();telegram=self.telegram.status();focus=self.focus.status()
+        integrations=[
+            {'name':'OPENAI / ASTRA','status':'CONNECTED' if self.brain.enabled else 'ACTION REQUIRED',
+             'detail':self.brain.model if self.brain.enabled else 'Configure an API key locally for live Astra.'},
+            {'name':'SECOND BRAIN','status':database_state,'detail':f'{sources} indexed source(s); SQLite quick check '+('passed' if database_ok else 'failed')},
+            {'name':'VOICE','status':'ACTION REQUIRED','detail':'Browser speech support and microphone permission are checked only after you press Use browser voice.'},
+            {'name':'WAKE WORD','status':'DISABLED','detail':'Opt-in per browser tab. Microphone access is released when disabled.'},
+            {'name':'SCREEN','status':'CONNECTED' if self.vision.enabled else 'ACTION REQUIRED',
+             'detail':'One-shot capture is user initiated; screenshots are not stored.' if self.vision.enabled else 'Configure authorized vision access locally; capture remains opt-in.'},
+            {'name':'CAMERA','status':'ACTION REQUIRED','detail':'Optional. Availability is checked after Look at this once; startup never requests camera access.'},
+            {'name':'FOCUS LOCK','status':'CONNECTED' if focus.get('monitor_supported') else 'ACTION REQUIRED',
+             'detail':focus.get('state','IDLE')+' · '+('local timer and foreground monitor ready' if focus.get('monitor_supported') else 'local timer available; foreground monitor unavailable')},
+            {'name':'GMAIL','status':'CONNECTED' if gmail.get('connected') else 'ACTION REQUIRED',
+             'detail':'Google OAuth configured; sending still requires approval.' if gmail.get('connected') else 'Configure local Google OAuth credentials and authorize Gmail.'},
+            {'name':'CALENDAR','status':'CONNECTED' if calendar.get('connected') else 'ACTION REQUIRED',
+             'detail':'Google OAuth configured; changes still require approval.' if calendar.get('connected') else 'Configure local Google OAuth credentials and authorize Calendar.'},
+            {'name':'TELEGRAM','status':'CONNECTED' if telegram.get('running') else ('ERROR' if telegram.get('state')=='ERROR' else ('DISABLED' if not telegram.get('enabled') else ('ACTION REQUIRED' if not telegram.get('configured') else 'CONNECTED'))),
+             'detail':f"{telegram.get('allowed_user_count',0)} allowlisted user(s); token is never returned."},
+            {'name':'WINDOWS TOOLS','status':'ACTION REQUIRED','detail':'Structured, allowlisted controls are being enabled in Phase 27; no shell tool is available.'},
+            {'name':'AUTOMATIONS','status':'DISABLED','detail':'Automations are off until you explicitly enable an individual rule.'},
+        ]
+        return {'integrations':integrations,'diagnostics':{'provider_available':self.brain.enabled,
+            'database_healthy':database_ok,'indexing_status':'READY' if not self.index_result.get('errors') else 'PARTIAL',
+            'indexed_sources':sources,'microphone':'CHECKS AFTER USER GESTURE','camera':'CHECKS AFTER USER GESTURE',
+            'last_successful_sync':None,'last_successful_use':None},
+            'setup_guide':'See docs/SETUP.md for local credential setup. Do not paste secrets into chat.'}
+
     def _record_context(self, context, data):
         events = {
             'NOTE_SELECTED':'NOTE','NOTE_OPENED':'NOTE','NOTE_MOVED':'NOTE','NOTE_CRUSHED':'NOTE',
@@ -215,6 +249,7 @@ class Runtime:
     def dispatch(self, method, path, data, query):
         if method == 'GET' and path == '/api/health':
             return {**self.health(),'screen_vision_enabled':self.vision.enabled}
+        if method == 'GET' and path == '/api/settings/status':return self.settings_status()
         if method == 'GET' and path == '/api/tools':
             return {'tools':self.orchestrator.tools.definitions(),'shell_available':False}
         if method == 'GET' and path == '/api/cards':return self.cards.list(query.get('all',[''])[0]=='1')

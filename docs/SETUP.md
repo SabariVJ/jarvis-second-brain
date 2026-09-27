@@ -252,3 +252,10 @@ Use **Save card** on a research result, memory, email, Calendar item, focus,
 Telegram status, invoice or generated document to keep a concise visual summary.
 Research stays temporary until explicitly saved. Cards can be pinned, dismissed
 or removed, and the interface displays whether a card is persistent.
+
+The **Integrations / Settings** panel reports local provider setup, database
+health, indexing state, and the current feature availability. It never displays
+credential values. Voice, wake and camera status are checked in the browser only
+after you use the corresponding control. Use this guide for local OAuth and API
+configuration; live Gmail, Calendar, Astra and Telegram checks need your own
+authorized accounts.
