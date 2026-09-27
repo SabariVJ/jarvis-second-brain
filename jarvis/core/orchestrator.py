@@ -10,6 +10,7 @@ class Orchestrator:
         self.research = research
         self.long_term_memory=long_term_memory
         self.document_service=document_service
+        self.approvals=None
         self.tools = Registry(authorizer=self._authorize_explicit_memory_tool)
         self.tools.register(Tool('search_memory',0,{'query':str},retrieval.search))
         self.tools.register(Tool('read_document',0,{'doc_id':str},database.document))
@@ -29,6 +30,11 @@ class Orchestrator:
     @staticmethod
     def _authorize_explicit_memory_tool(tool,args,authorization):
         return authorization=='explicit_user_memory_command' and tool.name in {'remember','update_memory','forget_memory'}
+
+    def _memory_write(self,name,args,context):
+        if self.approvals:
+            return self.approvals.execute_explicit_user_command(name,args,context.context_snapshot())['tool_result']['result']
+        return self.tools.execute(name,args,authorization='explicit_user_memory_command')['result']
 
     def chat(self, message, context, state, selected_id=None, spoken=False, capture_memories=True, origin='local'):
         if not isinstance(message,str) or not message.strip() or len(message)>4000:
@@ -163,8 +169,7 @@ class Orchestrator:
         explicit=re.match(r'^(?:please\s+)?remember(?:\s+that)?\s+(.+?)\s*[.!?]*$',raw,re.I)
         if explicit:
             source_type='telegram_explicit' if origin=='telegram' else 'user_explicit'
-            item=self.tools.execute('remember',{'content':explicit.group(1),'source_type':source_type},
-                authorization='explicit_user_memory_command')['result'];context.last_memory_id=item['id']
+            item=self._memory_write('remember',{'content':explicit.group(1),'source_type':source_type},context);context.last_memory_id=item['id']
             message_text='I already have this memory; it remains from your explicit request.' if item.get('duplicate') else 'I saved this intentional personal memory.'
             result=self._finish(message_text,[],[],state,'personal_memory',None);result['memory']=item;return result
         if re.match(r'^(?:don.t|do not) remember this\.?$',raw,re.I):
@@ -177,7 +182,7 @@ class Orchestrator:
             matches=self.tools.execute('search_personal_memory',{'query':target})['result']
             matches=[item for item in matches if not category or item['category']==category][:3]
             if len(matches)==1:
-                result=self.tools.execute('forget_memory',{'memory_id':matches[0]['id']},authorization='explicit_user_memory_command')['result'];context.last_memory_id=None
+                result=self._memory_write('forget_memory',{'memory_id':matches[0]['id']},context);context.last_memory_id=None
                 return self._finish('I deleted that stored personal memory.',[],[],state,'personal_memory',None)
             return self._finish('I did not find one unambiguous stored memory to delete.',[],[],state,'personal_memory',None)
         if re.match(r'^(?:why do you know that|show why you know that)\??$',raw,re.I):
@@ -198,12 +203,12 @@ class Orchestrator:
             query=corrected.group(1) or corrected.group(2);replacement=corrected.group(3)
             matches=self.tools.execute('search_personal_memory',{'query':query})['result'][:3]
             if len(matches)!=1:return self._finish('I need one matching memory before I can update it. Search or inspect the memory first.',[],[],state,'personal_memory',None)
-            item=self.tools.execute('update_memory',{'memory_id':matches[0]['id'],'content':replacement},authorization='explicit_user_memory_command')['result'];context.last_memory_id=item['id']
+            item=self._memory_write('update_memory',{'memory_id':matches[0]['id'],'content':replacement},context);context.last_memory_id=item['id']
             result=self._finish('I updated that personal memory and kept its provenance.',[],[],state,'personal_memory',None);result['memory']=item;return result
         corrected=re.match(r'^(?:correct that memory|update that memory)(?:\s+to|\s*:)?\s+(.+?)\s*[.!?]*$',raw,re.I)
         if corrected:
             if not context.last_memory_id:return self._finish('Search for a personal memory before correcting it.',[],[],state,'personal_memory',None)
-            item=self.tools.execute('update_memory',{'memory_id':context.last_memory_id,'content':corrected.group(1)},authorization='explicit_user_memory_command')['result'];context.last_memory_id=item['id']
+            item=self._memory_write('update_memory',{'memory_id':context.last_memory_id,'content':corrected.group(1)},context);context.last_memory_id=item['id']
             result=self._finish('I corrected that personal memory and updated its provenance.',[],[],state,'personal_memory',None);result['memory']=item;return result
         forget=re.match(r'^(?:forget|delete)\s+(.+?)\s*[.!?]*$',raw,re.I)
         if forget:
@@ -219,7 +224,7 @@ class Orchestrator:
                 matches=[item for item in matches if not category or item['category']==category][:3]
                 if len(matches)!=1:return self._finish('I need one matching memory before I can forget it. Search or inspect the memory first.',[],[],state,'personal_memory',None)
                 memory_id=matches[0]['id']
-            self.tools.execute('forget_memory',{'memory_id':memory_id},authorization='explicit_user_memory_command');context.last_memory_id=None
+            self._memory_write('forget_memory',{'memory_id':memory_id},context);context.last_memory_id=None
             return self._finish('I deleted that personal memory.',[],[],state,'personal_memory',None)
         return None
 

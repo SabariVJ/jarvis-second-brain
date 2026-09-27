@@ -222,6 +222,19 @@ registered as unavailable until their permission and user-gesture foundations
 are ready. No shell or arbitrary PowerShell tool is registered, and Astra does
 not receive unrestricted runtime function calling.
 
+## Phase 24: Permission and approval engine
+
+The local SQLite approval ledger binds each pending action to a validated tool,
+canonical arguments and SHA-256 digest. Approvals expire after five minutes by
+default (bounded from 30 seconds to 30 minutes), and confirmation must match
+`APPROVE <approval-id>` exactly. Execution revalidates the grant against the
+ledger and exact tool arguments; caller-supplied approval flags have no effect.
+The visible local approval card redacts message bodies and secret-like fields.
+Gmail send and Calendar create/reschedule/cancel flow through this ledger;
+provider adapters still verify their action-specific confirmation and report
+the provider's result before Jarvis claims success. Web, email, document,
+screen, and Telegram content are arguments/data only and cannot approve.
+
 ## Phase 15: Focus Lock
 
 Focus Lock starts only after the user presses Start or asks for a focus session.

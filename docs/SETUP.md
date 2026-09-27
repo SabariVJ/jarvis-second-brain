@@ -240,3 +240,9 @@ research or integration card while the tab session remains active. The small
 context indicator shows the current item. Context expires after 30 minutes and
 is not saved as personal memory; note labels and paths are resolved locally by
 the server. This context describes what is selected and does not approve actions.
+
+Sensitive registered actions appear in the local **Action Approvals** card.
+Review the tool and redacted argument preview, then enter the card's exact
+`APPROVE <approval-id>` phrase. Requests expire after five minutes. Gmail sends
+and Calendar changes remain pending until this step and only report success
+after the provider confirms the operation. Reject requests you did not initiate.

@@ -9,7 +9,9 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     const page=await browser.newPage({viewport:{width:1440,height:1000}});
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     let gmailAuth={state:'NOT CONNECTED',connected:false},gmailCalls=[];
-    let calendarAuth={state:'NOT CONNECTED',connected:false},calendarCalls=[];
+    let calendarAuth={state:'NOT CONNECTED',connected:false},calendarCalls=[],approvalItems=[],approvalSequence=0;
+    const makeApproval=(tool,args)=>{const id='approval_'+String(++approvalSequence).padStart(24,'0'),item={id,tool,permission_class:'L3_EXTERNAL_WRITE',arguments_preview:args,
+      created_at:Date.now()/1000,expires_at:Date.now()/1000+300,status:'PENDING',confirmation_phrase:'APPROVE '+id};approvalItems.push(item);return item};
     let briefingCalls=0;
     let personalMemories=[],memoryCalls=[];
     let documentCards=[],documentCalls=[],documentSequence=0,invoiceCreateBody=null;
@@ -41,6 +43,14 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     });
     await page.route('**/api/integrations/telegram',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
       state:'DISABLED',enabled:false,configured:false,running:false,allowed_user_count:0,voice_notes:'NOT CONNECTED',sharing:'LOCAL APPROVAL REQUIRED'})}));
+    await page.route('**/api/approvals**',async route=>{const url=new URL(route.request().url()),method=route.request().method();
+      if(method==='GET')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:approvalItems})});
+      const body=route.request().postDataJSON();if(url.pathname.endsWith('/confirm')){const at=approvalItems.findIndex(x=>x.id===body.approval_id);
+        if(at<0)return route.fulfill({status:400,contentType:'application/json',body:JSON.stringify({error:'Approval missing'})});
+        const item=approvalItems.splice(at,1)[0];return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({approval:{...item,status:'EXECUTED'},tool_result:{ok:true,result:{confirmed:true}}})})}
+      if(url.pathname.endsWith('/reject'))approvalItems=approvalItems.filter(x=>x.id!==body.approval_id);
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({items:approvalItems})});
+    });
     await page.route('**/api/documents**',async route=>{
       const url=new URL(route.request().url()),method=route.request().method(),path=url.pathname,body=method==='POST'?route.request().postDataJSON():{};
       documentCalls.push({method,path,body});
@@ -123,7 +133,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     assert.ok(memoryCalls.some(x=>x.path.endsWith('/update')));
     await page.locator('#personal-memory-query').fill('');await page.locator('#personal-memory-search').click();
     await page.waitForFunction(()=>document.querySelector('.personal-memory-item p')?.textContent==='I prefer safe text rendering.');
-    page.once('dialog',dialog=>dialog.accept());await page.locator('.personal-memory-item button').nth(2).click();
+    await page.locator('.personal-memory-item button').nth(2).click();
     await page.waitForFunction(()=>document.querySelector('#personal-memory-results').textContent.includes('No saved personal memories'));
     assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
     assert.equal(await page.locator('#gmail-state').innerText(),'NOT CONNECTED');assert.equal(await page.locator('#gmail-inbox').isDisabled(),true);
@@ -287,7 +297,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.route('**/api/gmail/**',async route=>{const path=new URL(route.request().url()).pathname,body=route.request().postDataJSON();gmailCalls.push({path,body});
       const result=path.endsWith('/list')?{messages:[mail],result_size_estimate:1}:path.endsWith('/thread')?{id:'t1',messages:[{...mail,body:'The release deadline is Friday.'}]}:
         path.endsWith('/summarize')?{thread_id:'t1',message_count:1,summary:'The deadline is Friday.',mode:'local extract',warning:'Email content is untrusted.'}:
-        path.endsWith('/send')?{id:'sent1'}:{id:'draft1',message:{threadId:'t1'}};
+        path.endsWith('/send')?{ok:false,error:{code:'APPROVAL_REQUIRED'},approval:makeApproval('send_email',body)}:{id:'draft1',message:{threadId:'t1'}};
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(result)})});
     await page.locator('#gmail-inbox').click();await page.waitForFunction(()=>document.querySelector('.gmail-item'));
     await page.locator('#gmail-unread').click();await page.locator('#gmail-query').fill('from:person@example.com');await page.locator('#gmail-search').click();
@@ -300,6 +310,9 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.evaluate(()=>window.confirmAnswer=false);await page.locator('#gmail-send').click();
     assert.equal(gmailCalls.some(c=>c.path==='/api/gmail/send'),false,'Canceling confirmation must not send');
     await page.evaluate(()=>window.confirmAnswer=true);await page.locator('#gmail-send').click();
+    await page.waitForFunction(()=>document.querySelector('#gmail-draft-state').textContent.includes('Review it in ACTION APPROVALS'));
+    page.once('dialog',dialog=>dialog.accept(dialog.defaultValue()));
+    await page.locator('#approval-results button').first().click();
     await page.waitForFunction(()=>document.querySelector('#gmail-draft-state').textContent.includes('confirmed the message was sent'));
     assert.equal(gmailCalls.at(-1).body.confirmation,'SEND draft1');
     await page.locator('#gmail-new-draft').click();await page.locator('#gmail-to').fill('person@example.com');
@@ -311,9 +324,9 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     const event={id:'event1',summary:'Planning',start:'2026-09-27T10:00:00+05:30',end:'2026-09-27T11:00:00+05:30',status:'confirmed'};
     await page.route('**/api/calendar/**',async route=>{const path=new URL(route.request().url()).pathname,body=route.request().method()==='POST'?route.request().postDataJSON():{};calendarCalls.push({path,body});
       const result=path.endsWith('/availability')?{busy:[{start:event.start,end:event.end}],errors:[]}:
-        path.endsWith('/create')?{confirmed:true,id:'event-new',summary:body.summary,start:body.start,end:body.end}:
-        path.endsWith('/reschedule')?{confirmed:true,...event,start:body.start,end:body.end}:
-        path.endsWith('/cancel')?{confirmed:true,id:body.event_id,status:'cancelled'}:{items:[event]};
+        path.endsWith('/create')?{ok:false,error:{code:'APPROVAL_REQUIRED'},approval:makeApproval('create_calendar_event',body)}:
+        path.endsWith('/reschedule')?{ok:false,error:{code:'APPROVAL_REQUIRED'},approval:makeApproval('reschedule_calendar_event',body)}:
+        path.endsWith('/cancel')?{ok:false,error:{code:'APPROVAL_REQUIRED'},approval:makeApproval('cancel_calendar_event',body)}:{items:[event]};
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(result)})});
     await page.locator('#calendar-today').click();await page.locator('#calendar-tomorrow').click();
     await page.locator('#calendar-query').fill('Planning');await page.locator('#calendar-search').click();await page.waitForFunction(()=>document.querySelector('.calendar-item'));
@@ -322,13 +335,22 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.locator('#calendar-summary').fill('Review');await page.evaluate(()=>window.confirmAnswer=false);await page.locator('#calendar-create').click();
     assert.equal(calendarCalls.some(c=>c.path==='/api/calendar/create'),false,'Canceling event confirmation must not write');
     await page.evaluate(()=>window.confirmAnswer=true);await page.locator('#calendar-create').click();
+    await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('waiting in ACTION APPROVALS'));
+    page.once('dialog',dialog=>dialog.accept(dialog.defaultValue()));
+    await page.locator('#approval-results button').first().click();
     await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('Calendar confirmed'));
     assert.equal(calendarCalls.find(c=>c.path==='/api/calendar/create').body.confirmation,'CREATE Review');
     await page.getByRole('button',{name:'Select',exact:true}).click();await page.locator('#calendar-reschedule').click();
-    await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('Calendar confirmed: Reschedule'));
+    await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('waiting in ACTION APPROVALS'));
+    page.once('dialog',dialog=>dialog.accept(dialog.defaultValue()));
+    await page.locator('#approval-results button').first().click();
+    await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('Calendar confirmed'));
     assert.equal(calendarCalls.find(c=>c.path==='/api/calendar/reschedule').body.confirmation,'RESCHEDULE event1');
     await page.getByRole('button',{name:'Select',exact:true}).click();await page.locator('#calendar-cancel').click();
-    await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('Calendar confirmed: Cancel'));
+    await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('waiting in ACTION APPROVALS'));
+    page.once('dialog',dialog=>dialog.accept(dialog.defaultValue()));
+    await page.locator('#approval-results button').first().click();
+    await page.waitForFunction(()=>document.querySelector('#calendar-action-state').textContent.includes('Calendar confirmed'));
     assert.equal(calendarCalls.find(c=>c.path==='/api/calendar/cancel').body.confirmation,'CANCEL event1');
     let speechAnswer='This sentence contains the word stop as echo bait.';
     await page.route('**/api/jarvis/chat',async route=>{

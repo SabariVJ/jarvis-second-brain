@@ -84,7 +84,13 @@ class HTTPTests(unittest.TestCase):
         status,raw=self.request('/api/tools/execute',{'name':'search_memory','arguments':{'query':'brand voice'}})
         self.assertEqual(status,200);self.assertTrue(json.loads(raw)['ok'])
         status,raw=self.request('/api/tools/execute',{'name':'create_document','arguments':{'kind':'report','title':'Test','content':'No write'},'approved':True})
-        self.assertEqual(status,200);self.assertEqual(json.loads(raw)['error']['code'],'PERMISSION_REQUIRED')
+        self.assertEqual(status,200);pending=json.loads(raw);self.assertEqual(pending['error']['code'],'APPROVAL_REQUIRED')
+        self.assertEqual(pending['approval']['status'],'PENDING')
+        self.assertEqual(json.loads(self.request('/api/approvals')[1])['items'][0]['id'],pending['approval']['id'])
+        self.assertEqual(self.request('/api/approvals/confirm',{'approval_id':pending['approval']['id'],'confirmation':'APPROVE wrong'})[0],400)
+        self.assertEqual(self.request('/api/approvals/confirm',{'approval_id':pending['approval']['id'],
+            'confirmation':pending['approval']['confirmation_phrase']})[0],200)
+        self.assertEqual(json.loads(self.request('/api/approvals')[1])['items'],[])
         status,raw=self.request('/api/tools/execute',{'name':'open_url','arguments':{'url':'file:///secret'},'approved':True})
         self.assertEqual(status,200);self.assertEqual(json.loads(raw)['error']['code'],'TOOL_UNAVAILABLE')
         status,raw=self.request('/api/tools/execute',{'name':'not_registered','arguments':{}})
@@ -180,10 +186,15 @@ class HTTPTests(unittest.TestCase):
         server.RUNTIME.gmail=Mock()
         server.RUNTIME.gmail.status.return_value={'state':'NOT CONNECTED','connected':False}
         server.RUNTIME.gmail.send_draft.return_value={'id':'sent1','threadId':'t1'}
+        server.RUNTIME.orchestrator.tools.tools['send_email'].function=server.RUNTIME.gmail.send_draft
         self.assertEqual(json.loads(self.request('/api/integrations/gmail')[1])['state'],'NOT CONNECTED')
         body={'draft_id':'d1','confirmation':'SEND d1'}
-        self.assertEqual(json.loads(self.request('/api/gmail/send',body)[1])['id'],'sent1')
-        server.RUNTIME.gmail.send_draft.assert_called_once_with('d1','SEND d1')
+        pending=json.loads(self.request('/api/gmail/send',body)[1])
+        self.assertEqual(pending['error']['code'],'APPROVAL_REQUIRED')
+        self.assertEqual(server.RUNTIME.gmail.send_draft.call_count,0)
+        self.assertTrue(json.loads(self.request('/api/approvals/confirm',{'approval_id':pending['approval']['id'],
+            'confirmation':pending['approval']['confirmation_phrase']})[1])['tool_result']['ok'])
+        server.RUNTIME.gmail.send_draft.assert_called_once_with(draft_id='d1',confirmation='SEND d1')
 
     def test_calendar_read_and_confirmed_write_routes(self):
         from unittest.mock import Mock
@@ -191,11 +202,14 @@ class HTTPTests(unittest.TestCase):
         server.RUNTIME.calendar.status.return_value={'state':'NOT CONNECTED','connected':False}
         server.RUNTIME.calendar.today.return_value={'items':[]}
         server.RUNTIME.calendar.create.return_value={'confirmed':True,'id':'e1'}
+        server.RUNTIME.orchestrator.tools.tools['create_calendar_event'].function=server.RUNTIME.calendar.create
         self.assertEqual(json.loads(self.request('/api/integrations/calendar')[1])['state'],'NOT CONNECTED')
         self.assertEqual(json.loads(self.request('/api/calendar/today',{})[1]),{'items':[]})
         body={'summary':'Review','start':'2026-09-27T10:00:00Z','end':'2026-09-27T11:00:00Z','confirmation':'CREATE Review'}
-        self.assertTrue(json.loads(self.request('/api/calendar/create',body)[1])['confirmed'])
-        server.RUNTIME.calendar.create.assert_called_once_with('Review',body['start'],body['end'],'CREATE Review','')
+        pending=json.loads(self.request('/api/calendar/create',body)[1]);self.assertEqual(pending['error']['code'],'APPROVAL_REQUIRED')
+        self.assertTrue(json.loads(self.request('/api/approvals/confirm',{'approval_id':pending['approval']['id'],
+            'confirmation':pending['approval']['confirmation_phrase']})[1])['tool_result']['ok'])
+        server.RUNTIME.calendar.create.assert_called_once_with(summary='Review',start=body['start'],end=body['end'],confirmation='CREATE Review',description='')
 
     def test_morning_briefing_is_an_explicit_post(self):
         from unittest.mock import Mock

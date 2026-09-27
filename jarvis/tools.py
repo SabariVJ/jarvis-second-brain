@@ -88,7 +88,7 @@ class Registry:
     def definitions(self):
         return [self.definition(name) for name in sorted(self.tools)]
 
-    def execute(self,name,args,*,authorization=None):
+    def validate(self,name,args):
         tool=self.tools.get(name)
         if not tool:raise ToolError('UNKNOWN_TOOL','Tool is not registered',name)
         if not isinstance(args,dict):raise ToolError('INVALID_ARGUMENTS','Tool arguments must be an object',name)
@@ -98,6 +98,10 @@ class Registry:
             for key,value in args.items():self._validate_value(value,schema[key],key)
         except ToolError as error:
             error.result['tool']=name;raise
+        return tool,args
+
+    def execute(self,name,args,*,authorization=None):
+        tool,args=self.validate(name,args)
         if not tool.available:raise ToolError('TOOL_UNAVAILABLE','This tool is not available in the current runtime',name)
         authorized=tool.permission_class=='L0_READ'
         if not authorized and self.authorizer:

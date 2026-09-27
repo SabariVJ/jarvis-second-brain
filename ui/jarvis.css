@@ -50,6 +50,11 @@
 #briefing-card h3{font:11px ui-monospace,monospace;letter-spacing:.1em;color:#ffd49a}
 #briefing-detail{max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:8px;overflow-wrap:anywhere}
 #briefing-detail ul{margin:4px 0;padding-left:20px}#briefing-detail li{margin:3px 0;color:#d5c8b6}
+#approval-card{border:1px solid #875c50;border-radius:12px;background:#1b1110;padding:10px;display:flex;flex-direction:column;gap:7px}
+#approval-card h3{font:11px ui-monospace,monospace;letter-spacing:.1em;color:#ffbc9e;margin:0}
+#approval-results{display:flex;flex-direction:column;gap:7px;max-height:220px;overflow:auto}
+.approval-item{border:1px solid #614339;border-radius:8px;padding:8px;overflow-wrap:anywhere}.approval-item small{display:block;color:#c7a99d;margin:5px 0}
+.approval-item pre{white-space:pre-wrap;max-height:90px;overflow:auto;font:10px/1.4 ui-monospace,monospace;color:#ddcec5;margin:5px 0}
 .focus-fields{display:grid;grid-template-columns:90px 1fr;gap:6px}
 .focus-fields input{padding:7px!important}
 .j-entry{padding:12px 0;border-bottom:1px solid #284038}

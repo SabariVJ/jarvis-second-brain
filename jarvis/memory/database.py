@@ -59,7 +59,14 @@ CREATE TABLE IF NOT EXISTS generated_documents (
  share_approved INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0,
  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','dismissed')));
 CREATE INDEX IF NOT EXISTS generated_documents_latest ON generated_documents(status,created_at DESC);
-PRAGMA user_version=3;
+CREATE TABLE IF NOT EXISTS approvals (
+ id TEXT PRIMARY KEY, tool TEXT NOT NULL, arguments_json TEXT NOT NULL, arguments_sha256 TEXT NOT NULL,
+ permission_class TEXT NOT NULL CHECK(permission_class IN ('L0_READ','L1_REVERSIBLE','L2_PERSONAL_WRITE','L3_EXTERNAL_WRITE','L4_DESTRUCTIVE')),
+ requesting_context_json TEXT NOT NULL DEFAULT '{}', created_at REAL NOT NULL, expires_at REAL NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('PENDING','APPROVED','REJECTED','EXPIRED','EXECUTED','FAILED')),
+ confirmed_at REAL, executed_at REAL, result_json TEXT NOT NULL DEFAULT '{}');
+CREATE INDEX IF NOT EXISTS approvals_pending ON approvals(status,expires_at,created_at DESC);
+PRAGMA user_version=4;
 '''
 
 class Database:
@@ -68,7 +75,7 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version > 3: raise ValueError('Database schema is newer than this application')
+            if version > 4: raise ValueError('Database schema is newer than this application')
             db.executescript(SCHEMA)
             columns={row['name'] for row in db.execute('PRAGMA table_info(memories)')}
             additions={
@@ -87,7 +94,7 @@ class Database:
             db.execute('UPDATE memories SET updated_at=created WHERE updated_at=0')
             db.execute('CREATE INDEX IF NOT EXISTS memory_active_category ON memories(status,category,updated_at DESC)')
             db.execute('CREATE INDEX IF NOT EXISTS memory_normalized ON memories(normalized)')
-            db.execute('PRAGMA user_version=3')
+            db.execute('PRAGMA user_version=4')
 
     @contextmanager
     def connect(self):

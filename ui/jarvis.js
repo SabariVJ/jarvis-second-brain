@@ -27,6 +27,10 @@ async function boot(){
         <form id="personal-memory-form"><label class="sub" for="personal-memory-content">Remember something explicitly</label><textarea id="personal-memory-content" maxlength="2000" rows="2" placeholder="Jarvis, remember that…"></textarea><button type="submit">Save memory</button></form>
         <div id="personal-memory-results" role="list" aria-live="polite"></div>
       </section>
+      <section id="approval-card" aria-label="Pending action approvals">
+        <h3>ACTION APPROVALS <span class="sub">LOCAL · EXPIRES IN 5 MINUTES</span></h3>
+        <div id="approval-results" role="list" aria-live="polite"></div>
+      </section>
       <div class="j-row"><button id="j-screen">Explain current screen once</button><span id="j-screen-state" class="sub" role="status" aria-live="polite">SCREEN OFF</span></div>
       <div class="j-row"><button id="j-eyes">Look at this once</button><span id="j-camera-state" class="sub" role="status" aria-live="polite">CAMERA READY</span></div>
       <section id="focus-card" aria-label="H.O.L.O Focus Lock">
@@ -130,6 +134,25 @@ async function boot(){
     for(const s of sources){const b=document.createElement('button');b.textContent=s.relative_path||s.title;b.title=s.path;b.onclick=()=>openSource(s.document_id).catch(showError);links.append(b)}
     el.append(links);$('j-log').append(el);while($('j-log').children.length>30)$('j-log').firstChild.remove();$('j-log').scrollTop=$('j-log').scrollHeight;
   }
+  async function refreshApprovals(){const result=await api('/api/approvals');const host=$('approval-results');host.replaceChildren();
+    for(const item of result.items||[]){const row=document.createElement('article');row.className='approval-item';row.dataset.id=item.id;
+      const title=document.createElement('strong');title.textContent=item.tool.replaceAll('_',' ')+' · '+item.permission_class;
+      const preview=document.createElement('pre');preview.textContent=JSON.stringify(item.arguments_preview,null,2);
+      const expires=document.createElement('small');expires.textContent='Expires '+new Date(item.expires_at*1000).toLocaleTimeString()+' · phrase: '+item.confirmation_phrase;
+      const approve=document.createElement('button');approve.textContent='Review and approve';
+      const reject=document.createElement('button');reject.textContent='Reject';
+      approve.onclick=async()=>{const phrase=window.prompt('Enter the exact approval phrase shown on this card. This action runs immediately after approval.',item.confirmation_phrase);
+        if(phrase===null)return;approve.disabled=reject.disabled=true;try{const done=await api('/api/approvals/confirm',{approval_id:item.id,confirmation:phrase});
+          entry(done.tool_result?.ok?'Approved action completed.':'Approved action failed safely.');
+          if(done.tool_result?.ok&&item.tool==='send_email'){$('gmail-draft-state').textContent='Gmail confirmed the message was sent.';$('gmail-send').hidden=true;currentGmailDraft=null}
+          if(done.tool_result?.ok&&item.tool.includes('calendar'))$('calendar-action-state').textContent='Calendar confirmed the approved change.';
+          await refreshApprovals();if(done.tool_result?.ok){refresh().catch(()=>{});loadDocuments().catch(()=>{});
+            if(item.tool.includes('calendar'))checkCalendar().catch(()=>{});if(item.tool.includes('email'))checkGmail().catch(()=>{})}}
+        catch(e){entry(e.message||'Approval was not accepted.');await refreshApprovals().catch(()=>{})}};
+      reject.onclick=async()=>{approve.disabled=reject.disabled=true;try{await api('/api/approvals/reject',{approval_id:item.id});await refreshApprovals()}catch(e){showError(e)}};
+      row.append(title,preview,expires,document.createElement('br'),approve,reject);host.append(row)}
+  }
+  refreshApprovals().catch(()=>{});setInterval(()=>refreshApprovals().catch(()=>{}),5000);
   function researchCard(card){
     let el=[...$('research-cards').children].find(x=>x.dataset.id===card.id);
     if(!el){el=document.createElement('article');el.className='research-card';el.dataset.id=card.id;$('research-cards').prepend(el)}
@@ -470,7 +493,7 @@ async function boot(){
   $('gmail-send').onclick=async()=>{if(!gmailConnected||!currentGmailDraft)return;
     if(!confirm('Send this Gmail draft now? It will leave your account.'))return;
     try{await api('/api/gmail/send',{draft_id:currentGmailDraft,confirmation:'SEND '+currentGmailDraft});
-      $('gmail-draft-state').textContent='Gmail confirmed the message was sent.';$('gmail-send').hidden=true;currentGmailDraft=null}
+      $('gmail-draft-state').textContent='Send request created. Review it in ACTION APPROVALS before Gmail is contacted.';await refreshApprovals()}
     catch(e){entry(e.message||'Gmail did not confirm sending.','assistant')}};
   let calendarConnected=false,selectedCalendarEvent=null;
   function setCalendarConnected(connected,state){calendarConnected=Boolean(connected);$('calendar-state').textContent=state||(calendarConnected?'CONFIGURED':'NOT CONNECTED');
@@ -494,7 +517,8 @@ async function boot(){
   async function calendarMutate(path,payload,phrase,verb){if(!calendarConnected)return;
     if(!window.confirm(`${verb}\n\n${phrase}\n\nContinue?`))return;
     try{const result=await api(path,{...payload,confirmation:phrase});
-      if(!result.confirmed)throw new Error('Calendar did not confirm this change.');
+      if(result.error?.code==='APPROVAL_REQUIRED'){$('calendar-action-state').textContent=`${verb} is waiting in ACTION APPROVALS.`;await refreshApprovals();return}
+      if(!result.ok||!result.result?.confirmed)throw new Error('Calendar did not confirm this change.');
       $('calendar-action-state').textContent=`Calendar confirmed: ${verb}`;
       try{const range=calendarRange();await calendarList('/api/calendar/events',range)}
       catch(_){$('calendar-action-state').textContent=`Calendar confirmed: ${verb}. Refresh the event list to verify.`}}

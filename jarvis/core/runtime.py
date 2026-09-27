@@ -22,6 +22,7 @@ from .state import StateMachine
 from io import BytesIO
 from jarvis.documents import DocumentAutomation
 from jarvis.tools import Tool
+from jarvis.approvals import ApprovalEngine
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -50,6 +51,8 @@ class Runtime:
             transcriber=self._transcribe_telegram_voice
         self.telegram=TelegramAdapter(on_text=self._telegram_chat,transcriber=transcriber,artifact_provider=self.documents.telegram_artifact)
         self._register_tool_catalog()
+        self.approvals=ApprovalEngine(self.database,self.orchestrator.tools)
+        self.orchestrator.approvals=self.approvals
 
     def _register_tool_catalog(self):
         registry=self.orchestrator.tools
@@ -132,6 +135,17 @@ class Runtime:
         _,context,_=self.sessions.get(session_id)
         return context.context_snapshot()
 
+    def _execute_tool(self,name,arguments):
+        try:return self.orchestrator.tools.execute(name,arguments)
+        except PermissionError:
+            pending=self.approvals.request(name,arguments)
+            return {'ok':False,'tool':name,'result':None,'error':{'code':'APPROVAL_REQUIRED',
+                'message':'This action needs your explicit approval.'},'verification':'NOT_RUN','approval':pending}
+        except Exception as error:
+            structured=getattr(error,'result',None)
+            if structured is not None:return structured
+            raise
+
     def health(self):
         return {'ok': True, 'service': 'Jarvis', 'camera_required': False,
                 'microphone_required': False, 'mode': 'configured' if self.brain.enabled else 'local',
@@ -201,13 +215,20 @@ class Runtime:
             return {**self.health(),'screen_vision_enabled':self.vision.enabled}
         if method == 'GET' and path == '/api/tools':
             return {'tools':self.orchestrator.tools.definitions(),'shell_available':False}
+        if method == 'GET' and path == '/api/approvals':
+            return self.approvals.list_pending()
+        if method == 'POST' and path == '/api/approvals/request':
+            context={}
+            session_id=data.get('session_id')
+            if isinstance(session_id,str) and session_id:
+                _,session_context,_=self.sessions.get(session_id);context=session_context.context_snapshot()
+            return {'approval':self.approvals.request(data.get('tool'),data.get('arguments',{}),context)}
+        if method == 'POST' and path == '/api/approvals/confirm':
+            return self.approvals.confirm(data.get('approval_id'),data.get('confirmation'))
+        if method == 'POST' and path == '/api/approvals/reject':
+            return {'approval':self.approvals.reject(data.get('approval_id'))}
         if method == 'POST' and path == '/api/tools/execute':
-            name=data.get('name');arguments=data.get('arguments',{})
-            try:return self.orchestrator.tools.execute(name,arguments)
-            except Exception as error:
-                structured=getattr(error,'result',None)
-                if structured is not None:return structured
-                raise
+            return self._execute_tool(data.get('name'),data.get('arguments',{}))
         if method == 'GET' and path == '/api/focus':
             return self.focus.status()
         if method == 'GET' and path == '/api/integrations/gmail': return self.gmail.status()
@@ -242,7 +263,7 @@ class Runtime:
         if method == 'POST' and path == '/api/gmail/reply-draft':
             return self.gmail.reply_draft(data.get('thread_id'),data.get('body'))
         if method == 'POST' and path == '/api/gmail/send':
-            return self.gmail.send_draft(data.get('draft_id'),data.get('confirmation'))
+            return self._execute_tool('send_email',{'draft_id':data.get('draft_id'),'confirmation':data.get('confirmation')})
         if method == 'POST' and path == '/api/calendar/today': return self.calendar.today()
         if method == 'POST' and path == '/api/calendar/tomorrow': return self.calendar.tomorrow()
         if method == 'POST' and path == '/api/calendar/events':
@@ -254,11 +275,11 @@ class Runtime:
         if method == 'POST' and path == '/api/calendar/availability':
             return self.calendar.availability(data.get('start'),data.get('end'))
         if method == 'POST' and path == '/api/calendar/create':
-            return self.calendar.create(data.get('summary'),data.get('start'),data.get('end'),data.get('confirmation'),data.get('description',''))
+            return self._execute_tool('create_calendar_event',{key:data[key] for key in ('summary','start','end','confirmation') if key in data} | {'description':data.get('description','')})
         if method == 'POST' and path == '/api/calendar/reschedule':
-            return self.calendar.reschedule(data.get('event_id'),data.get('start'),data.get('end'),data.get('confirmation'))
+            return self._execute_tool('reschedule_calendar_event',{key:data[key] for key in ('event_id','start','end','confirmation') if key in data})
         if method == 'POST' and path == '/api/calendar/cancel':
-            return self.calendar.cancel(data.get('event_id'),data.get('confirmation'))
+            return self._execute_tool('cancel_calendar_event',{key:data[key] for key in ('event_id','confirmation') if key in data})
         if method == 'POST' and path == '/api/focus/start':
             return self.focus.start(data.get('minutes',90),data.get('goal','Focus session'),data.get('allowed_apps'),data.get('distractions'))
         if method == 'POST' and path == '/api/focus/pause': return self.focus.pause()
