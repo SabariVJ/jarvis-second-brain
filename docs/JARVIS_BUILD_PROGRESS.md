@@ -30,7 +30,7 @@ physical microphone acceptance remain pending. This is not complete video parity
 | 15 Focus Lock | Complete, physical Windows monitoring acceptance pending | focus.py, runtime.py, ui/jarvis.js, H.O.L.O Focus card | 37 Python tests, mocked Win32 foreground read, title-free persisted history, controls/voice commands, browser acceptance | 5c52c3c | Verify live foreground classification on Windows |
 | 16 Gmail | Complete code/mocks/UI, OAuth user setup required | integrations/google_oauth.py, gmail.py, runtime.py, ui/jarvis.js | 44 Python tests; mocked OAuth/API, disconnected state, inbox/unread/search/thread/local summary/draft/reply/send confirmation; browser acceptance and probe 26/26 | dbde059 | User must configure local Google OAuth before live Gmail use |
 | 17 Calendar | Complete code/mocks/UI, OAuth user setup required | integrations/calendar.py, runtime.py, ui/jarvis.js | 51 Python tests; mocked today/tomorrow/range/search/free-busy and create/reschedule/cancel confirmation; browser acceptance and probe 26/26 | eda74d3 | User must configure Calendar OAuth scopes before live use |
-| 18 Morning briefing | Complete code/mocks/UI, OAuth user setup required for live data | briefing.py, runtime.py, ui/jarvis.js, H.O.L.O briefing card | 55 Python tests; disconnected/failure fallbacks, source-backed brain inputs, mock integrations, manual-only card/voice; browser acceptance and probe 26/26 | pending | Optional Google OAuth setup for live Gmail and Calendar inputs |
+| 18 Morning briefing | Complete code/mocks/UI, OAuth user setup required for live data | briefing.py, runtime.py, ui/jarvis.js, H.O.L.O briefing card | 55 Python tests; disconnected/failure fallbacks, source-backed brain inputs, mock integrations, manual-only card/voice; browser acceptance and probe 26/26 | 38d6d70 | Optional Google OAuth setup for live Gmail and Calendar inputs |
 | 19–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations and memory workflows |
 
 ## Full checkpoint SHAs
@@ -50,6 +50,7 @@ physical microphone acceptance remain pending. This is not complete video parity
 - Phase 15 Focus Lock: `5c52c3c2b7881e91c410cd508e009b1f60b4456f`
 - Phase 16 Gmail: `dbde0592551981b85acb495727f6d1bc1cb3e1bb`
 - Phase 17 Calendar: `eda74d3e5ec80552adfb9ca344e5b6f171cf985c`
+- Phase 18 Morning briefing: `38d6d7030054b62cb2d295f13740ea1b35367c01`
 
 ## Final validation
 
