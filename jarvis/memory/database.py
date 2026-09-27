@@ -1,0 +1,87 @@
+"""SQLite source-of-truth. One connection per operation, WAL, foreign keys."""
+from contextlib import contextmanager
+from pathlib import Path
+import sqlite3
+import hashlib
+
+def stable_id(kind, value):
+    return kind + '_' + hashlib.sha256(value.encode('utf-8')).hexdigest()[:24]
+
+SCHEMA = '''
+CREATE TABLE IF NOT EXISTS sources (
+ id TEXT PRIMARY KEY, root TEXT NOT NULL, path TEXT NOT NULL UNIQUE,
+ relative_path TEXT NOT NULL, fingerprint TEXT NOT NULL, modified REAL NOT NULL,
+ indexed REAL NOT NULL, status TEXT NOT NULL CHECK(status IN ('active','deleted','error')),
+ error TEXT, media_type TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS documents (
+ id TEXT PRIMARY KEY, source_id TEXT NOT NULL UNIQUE REFERENCES sources(id),
+ title TEXT NOT NULL, body TEXT NOT NULL, fingerprint TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS document_fingerprint ON documents(fingerprint);
+CREATE TABLE IF NOT EXISTS chunks (
+ id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+ ordinal INTEGER NOT NULL, text TEXT NOT NULL, start INTEGER NOT NULL, end INTEGER NOT NULL,
+ UNIQUE(document_id,ordinal));
+CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(id UNINDEXED, text, title, path);
+CREATE TABLE IF NOT EXISTS vectors (
+ chunk_id TEXT NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
+ model TEXT NOT NULL, embedding TEXT NOT NULL, PRIMARY KEY(chunk_id, model));
+CREATE TABLE IF NOT EXISTS entities (
+ id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
+ UNIQUE(name,kind));
+CREATE TABLE IF NOT EXISTS relationships (
+ id TEXT PRIMARY KEY, subject TEXT NOT NULL, predicate TEXT NOT NULL, object TEXT NOT NULL,
+ source_id TEXT NOT NULL REFERENCES sources(id), evidence TEXT NOT NULL,
+ confidence REAL NOT NULL CHECK(confidence BETWEEN 0 AND 1));
+CREATE INDEX IF NOT EXISTS relationship_source ON relationships(source_id);
+CREATE TABLE IF NOT EXISTS memories (
+ id TEXT PRIMARY KEY, category TEXT NOT NULL, content TEXT NOT NULL,
+ source_id TEXT NOT NULL REFERENCES sources(id), created REAL NOT NULL,
+ confidence REAL NOT NULL CHECK(confidence BETWEEN 0 AND 1));
+CREATE TABLE IF NOT EXISTS conversations (
+ id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id), created REAL NOT NULL,
+ content TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS tasks (
+ id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL,
+ source_id TEXT NOT NULL REFERENCES sources(id));
+CREATE TABLE IF NOT EXISTS projects (
+ id TEXT PRIMARY KEY, name TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES sources(id));
+CREATE TABLE IF NOT EXISTS people (
+ id TEXT PRIMARY KEY, name TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES sources(id));
+PRAGMA user_version=1;
+'''
+
+class Database:
+    def __init__(self, path):
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.connect() as db:
+            version = db.execute('PRAGMA user_version').fetchone()[0]
+            if version > 1: raise ValueError('Database schema is newer than this application')
+            db.executescript(SCHEMA)
+
+    @contextmanager
+    def connect(self):
+        db = sqlite3.connect(self.path, timeout=10)
+        db.row_factory = sqlite3.Row
+        db.execute('PRAGMA foreign_keys=ON')
+        db.execute('PRAGMA journal_mode=WAL')
+        try:
+            with db: yield db
+        finally:
+            db.close()
+
+    def document(self, doc_id):
+        with self.connect() as db:
+            row = db.execute('''SELECT d.*, s.path, s.relative_path, s.modified, s.indexed
+                FROM documents d JOIN sources s ON s.id=d.source_id
+                WHERE d.id=? AND s.status='active' ''', (doc_id,)).fetchone()
+            if not row: raise ValueError('Source is unavailable; reindex or select another note')
+            return dict(row)
+
+    def status(self):
+        with self.connect() as db:
+            counts = {t: db.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
+                      for t in ['documents','chunks','entities','relationships','vectors']}
+            counts['active_sources'] = db.execute("SELECT COUNT(*) FROM sources WHERE status='active'").fetchone()[0]
+            counts['errors'] = [dict(r) for r in db.execute("SELECT relative_path,error FROM sources WHERE status='error'")]
+            return counts

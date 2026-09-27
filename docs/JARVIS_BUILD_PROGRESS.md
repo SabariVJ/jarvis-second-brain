@@ -15,3 +15,5 @@ Commit IDs for each phase are recorded at subsequent checkpoints (a commit canno
 contain its own hash). Resolve latest checkpoint with `git log -1`.
 
 Phases 1–2 backend: modular runtime, per-tab expiring context, explicit state machine, bounded same-origin JSON APIs and GET /api/state implemented. Three core tests pass; frontend state reflection remains for Phase 7. Next: SQLite schema and ingestion.
+
+Phases 3–4: SQLite provenance schema, incremental UTF-8/PDF reader, offset chunks, fingerprints, tombstones, explicit graph evidence. Eight tests pass after fixing Windows newline preservation. PDF package/live fixture validation pending. Commit fc74313 is the runtime checkpoint. Next: hybrid retrieval and optional embeddings.
