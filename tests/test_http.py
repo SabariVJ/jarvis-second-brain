@@ -103,3 +103,19 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request('/api/vision/camera',camera)[0],200)
         server.RUNTIME.vision.analyze_frame.assert_called_with(camera['question'],camera['image_data_url'])
         self.assertEqual(server.RUNTIME.database.status()['documents'],initial)
+
+    def test_focus_lock_routes_keep_session_actions_explicit(self):
+        from unittest.mock import Mock
+        server.RUNTIME.focus=Mock()
+        server.RUNTIME.focus.status.return_value={'state':'IDLE'}
+        server.RUNTIME.focus.start.return_value={'state':'ACTIVE','distraction_count':0}
+        server.RUNTIME.focus.pause.return_value={'state':'PAUSED'}
+        server.RUNTIME.focus.resume.return_value={'state':'ACTIVE'}
+        server.RUNTIME.focus.stop.return_value={'state':'STOPPED'}
+        self.assertEqual(json.loads(self.request('/api/focus')[1])['state'],'IDLE')
+        start={'minutes':90,'goal':'Coding','allowed_apps':['code.exe'],'distractions':['instagram']}
+        self.assertEqual(json.loads(self.request('/api/focus/start',start)[1])['state'],'ACTIVE')
+        server.RUNTIME.focus.start.assert_called_once_with(90,'Coding',['code.exe'],['instagram'])
+        self.assertEqual(json.loads(self.request('/api/focus/pause',{})[1])['state'],'PAUSED')
+        self.assertEqual(json.loads(self.request('/api/focus/resume',{})[1])['state'],'ACTIVE')
+        self.assertEqual(json.loads(self.request('/api/focus/stop',{})[1])['state'],'STOPPED')

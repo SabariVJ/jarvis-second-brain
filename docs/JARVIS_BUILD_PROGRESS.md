@@ -1,4 +1,4 @@
-# JARVIS build progress — Phase 12 checkpoint, 2026-09-27
+# JARVIS build progress — Phase 15 checkpoint, 2026-09-27
 
 Branch: `jarvis-second-brain`.
 Start SHA: `278fe99f44907a4af3db2e9d3aacfb144970625d` (untouched archive).
@@ -26,7 +26,8 @@ physical microphone acceptance remain pending. This is not complete video parity
 | 12 Wake/interruption | Complete, hardware acceptance pending | ui/jarvis.js, runtime.py | Mock stop/cancel/enough, echo filter, TTS wake suppression/resume, mute, denied/unavailable speech; probe 26/26 | 1cdad6a | Real microphone/acoustic acceptance |
 | 13 Screen vision | Complete, live key acceptance pending | ai/vision.py, runtime.py, server.py, ui/jarvis.js | 32 Python tests, prompt boundary/image validation, explicit picker/capture/discard, mocked endpoint; probe 26/26 | 77cfd8e | Live vision account acceptance |
 | 14 Jarvis Eyes | Complete, hardware/key acceptance pending | ai/vision.py, runtime.py, ui/jarvis.js | Camera states, fake frame, track disposal, unavailable/denied paths; no-camera simulation green | e903720 | Physical camera acceptance |
-| 15–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
+| 15 Focus Lock | Complete, physical Windows monitoring acceptance pending | focus.py, runtime.py, ui/jarvis.js, H.O.L.O Focus card | 37 Python tests, mocked Win32 foreground read, title-free persisted history, controls/voice commands, browser acceptance | Commit below | Verify live foreground classification on Windows |
+| 16–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
 
 ## Full checkpoint SHAs
 
@@ -42,10 +43,11 @@ physical microphone acceptance remain pending. This is not complete video parity
 - Phase 12 spoken interruption: `1cdad6ac3bd193ddbe322b8dc2d75d9eb6d58ede`
 - Phase 13 screen vision: `77cfd8e618b29a22bdc2deae127d47c022748ad1`
 - Phase 14 Jarvis Eyes: `e9037200b3d13e2b0e6f8be95a71fbc363e932ef`
+- Phase 15 Focus Lock: validated; commit below
 
 ## Final validation
 
-- Python 3.11 project environment: **32/32 tests pass, zero skips**.
+- Python 3.11 project environment: **37/37 tests pass, zero skips**.
 - Actual OpenAI SDK 2.54.0 serialization/parsing tested over mocked HTTP.
 - Actual pypdf 6.19.0 extraction tested with generated PDF text.
 - `pip check` green; compilation and diff whitespace checks green.
@@ -58,7 +60,8 @@ physical microphone acceptance remain pending. This is not complete video parity
   wake suppression during playback, wake resume, denied/unavailable speech.
   One-shot screen chooser, indicator, transient JPEG request, immediate track
   release, denied sharing, one-shot camera frame, track disposal, missing/denied
-  camera states, and unchanged memory document count. **Zero page errors.**
+  camera states, Focus Lock controls and natural-language start, and unchanged
+  memory document count. **Zero page errors.**
 - Windows launch.cmd successfully starts server.py on http://localhost:4890.
 - Sample index: eight documents/chunks/entities/edges; no extraction errors.
 - No key/live API call, microphone recording, webcam test or external message.
@@ -72,11 +75,11 @@ physical microphone acceptance remain pending. This is not complete video parity
    citations, semantic paraphrase after explicit vector indexing, and actual
    microphone transcript search independent of the camera. Record results without
    secrets or private source bodies. Mocks do not prove live account access.
-3. **Next coding task: Phase 15, Windows Focus Lock.** Add an opt-in foreground
-   process/window-title sampler; never capture keys or screen content. Persist
-   only session statistics and user-selected allow/distraction rules locally.
-   Add start/pause/resume/stop controls, concise interventions, a H.O.L.O Focus
-   card, and tests with a mocked sampler.
+3. **Next coding task: Phase 16, Gmail adapter foundation.** Add disconnected
+   status, mock read/search/thread/summary and draft/reply-draft flows, and require
+   explicit confirmation before any send. Do not request OAuth credentials in
+   chat; add exact local setup instructions after adapter and UI boundaries are
+   tested. Use mocks and keep live provider calls disabled until configured.
 4. Follow MASTER_SPEC.md sequentially. No Gmail/Calendar/Telegram credentials are
    needed until those integrations and their approval boundaries exist.
 

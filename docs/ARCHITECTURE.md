@@ -22,7 +22,7 @@ Galaxy selection ───┘                         │
 
 The app binds only 127.0.0.1. Host and Origin checks reject DNS rebinding/cross-site
 access; write requests require JSON and have a 64 KiB limit, except the bounded
-single-screen-image endpoint (800 KiB). No CORS headers are
+single-frame screen/camera vision endpoints (800 KiB). No CORS headers are
 emitted. Static serving is limited to vendor, props and ui with resolved path
 containment. Notes cannot escape their configured root via symlinks. Data, .env,
 Python source and Git are never statically served. This protects a local browser
@@ -138,12 +138,28 @@ Original APIs are preserved; GET /api/state was added. New endpoints:
 | POST | /api/jarvis/chat | Text or recognized transcript |
 | POST | /api/jarvis/voice-state | Validated client voice lifecycle |
 | POST | /api/vision/screen | Single transient JPEG analysis, bounded and not persisted |
+| POST | /api/vision/camera | Single transient camera frame analysis |
+| GET | /api/focus | Local Focus Lock state |
+| POST | /api/focus/{start,pause,resume,stop} | Explicit local session controls |
 | GET | /api/memory/status | Counts and extraction errors |
 | POST | /api/memory/reindex | Scan configured root only |
 | POST | /api/memory/embed | Build explicitly enabled cloud vectors |
 | GET | /api/memory/search?q=… | Hybrid/local search with citations |
 | GET | /api/memory/document?id=… | Active indexed source snapshot |
 | GET | /api/graph?focus=… | Bounded source-supported graph |
+
+## Phase 15: Focus Lock
+
+Focus Lock starts only after the user presses Start or asks for a focus session.
+On Windows a five-second background sampler reads the foreground process name
+and window title through read-only window APIs. It does not capture keyboard
+input, screenshots or page contents. The raw title exists only for in-memory
+matching against the user's allow and distraction rules; it is never logged or
+persisted. Local `data/focus.json` stores the goal, rules, start/end times,
+duration, pauses, focus seconds, distraction count and outcome. Browser URL
+inspection is not available in this local web app; browser tab titles can match
+user-provided site keywords. On platforms without Windows window APIs the timer
+and controls remain available while app monitoring reports unavailable.
 
 ## Phase 10: web research
 

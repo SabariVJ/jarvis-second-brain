@@ -31,7 +31,7 @@ py -m venv .venv
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-32 Python tests cover states, isolation, security, ingestion, provenance, search,
+37 Python tests cover states, isolation, security, ingestion, provenance, search,
 mocked vectors, source selection, SDK wire contract and actual PDF parsing. Without
 optional packages two integration tests skip; that is not a full acceptance pass.
 
@@ -131,6 +131,14 @@ click or an explicit camera question. It captures one frame, stops camera tracks
 and discards the image after analysis. A camera is not required to launch Jarvis
 or use H.O.L.O simulation; live image analysis uses the same API key as screen
 understanding.
+
+The H.O.L.O Focus Lock card tracks a local focus timer and, on Windows, samples
+the foreground process and window title every five seconds only while a session
+is active. Raw titles are matched in memory and discarded; local session totals
+and your focus rules are saved in `data/focus.json`. It does not record keys or
+screenshots. Browser URLs are not inspected; a tab title can match the site
+keywords you enter. On other operating systems the focus timer and buttons work
+without application monitoring.
 
 Gmail, Calendar and Telegram are **not implemented** in this foundation. There is
 no connection setup to perform yet; do not add tokens speculatively. Implement

@@ -8,6 +8,17 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
   try{
     const page=await browser.newPage({viewport:{width:1440,height:1000}});
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    let focusState={state:'IDLE',monitor_supported:true,warning:null},focusCalls=[];
+    const focusRoute=async route=>{
+      const url=new URL(route.request().url()),action=url.pathname.split('/').pop();
+      if(route.request().method()==='POST'){
+        const body=route.request().postDataJSON();focusCalls.push({action,body});
+        focusState=action==='start'?{state:'ACTIVE',goal:body.goal,remaining_seconds:5400,distraction_count:0,pause_count:0,monitor_supported:true,warning:null}:
+          action==='pause'?{...focusState,state:'PAUSED'}:action==='resume'?{...focusState,state:'ACTIVE'}:{...focusState,state:'STOPPED',result:'stopped'};
+      }
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(focusState)});
+    };
+    await page.route('**/api/focus',focusRoute);await page.route('**/api/focus/**',focusRoute);
     await page.addInitScript(()=>{
       // Test voice transcript transport without a microphone or an online STT service.
       window.SpeechRecognition=class {
@@ -150,6 +161,19 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.evaluate(()=>window.denyCamera=true);await page.locator('#j-eyes').click();
     await page.waitForFunction(()=>document.querySelector('#j-camera-state').textContent==='CAMERA ERROR'&&document.querySelector('#j-log').textContent.includes('Camera access was denied'));
     assert.equal(cameraPosts,1);
+    await page.locator('#focus-start').click();await page.waitForFunction(()=>document.querySelector('#focus-status').textContent.includes('ACTIVE'));
+    assert.equal(focusCalls.at(-1).body.minutes,90);assert.deepEqual(focusCalls.at(-1).body.allowed_apps,['code.exe','devenv.exe','pycharm64.exe']);
+    await page.locator('#focus-pause').click();await page.waitForFunction(()=>document.querySelector('#focus-status').textContent.startsWith('PAUSED'));
+    await page.locator('#focus-resume').click();await page.waitForFunction(()=>document.querySelector('#focus-status').textContent.startsWith('ACTIVE'));
+    await page.locator('#focus-stop').click();await page.waitForFunction(()=>document.querySelector('#focus-status').textContent.startsWith('STOPPED'));
+    await page.locator('#j-input').fill("Focus mode for 90 minutes. I'm coding.");await page.locator('#j-send').click();
+    await page.waitForFunction(()=>document.querySelector('#focus-status').textContent.startsWith('ACTIVE'));
+    assert.equal(focusCalls.at(-1).body.goal,'coding');
+    for(const [command,state,action] of [['pause focus','PAUSED','pause'],['resume focus','ACTIVE','resume'],['stop focus','STOPPED','stop']]){
+      await page.locator('#j-input').fill(command);await page.locator('#j-send').click();
+      await page.waitForFunction(expected=>document.querySelector('#focus-status').textContent.startsWith(expected),state);
+      assert.equal(focusCalls.at(-1).action,action);
+    }
     let speechAnswer='This sentence contains the word stop as echo bait.';
     await page.route('**/api/jarvis/chat',async route=>{
       const body=route.request().postDataJSON();
@@ -198,6 +222,6 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/mobile-preview.png'});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     assert.deepEqual(errors,[]);
-    console.log('PASS: probe+props, simulation, no-camera, research, voice interruption/echo/mute, wake safety, one-shot screen/camera capture-discard, permission failures, layout; zero page errors.');
+    console.log('PASS: probe+props, simulation, no-camera, research, voice interrupt/wake safety, screen/camera capture-discard, Focus Lock start/pause/resume/stop by controls and voice, permissions, layout; zero page errors.');
   }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

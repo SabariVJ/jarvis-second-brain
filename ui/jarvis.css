@@ -1,6 +1,7 @@
 :root{color-scheme:dark}
 #brain-toggle{position:fixed;left:28px;top:244px;z-index:8;background:#10231f;color:#a9ffe6;border:1px solid #4e8978;border-radius:24px;padding:12px 20px;cursor:pointer;font:12px ui-monospace,monospace;letter-spacing:.12em}
 #jarvis-panel{position:fixed;right:26px;top:86px;bottom:170px;width:370px;z-index:7;border:1px solid #3d5a50;border-radius:20px;background:rgba(7,16,20,.95);padding:20px;display:flex;flex-direction:column;gap:12px;box-shadow:0 18px 80px #0008;color:#d8e9e2;font:13px/1.55 'Segoe UI',sans-serif}
+#jarvis-panel{overflow-y:auto}
 #jarvis-panel h2{font:18px ui-monospace,monospace;letter-spacing:.2em;color:#d6fce9}
 #jarvis-panel .sub{font-size:11px;color:#86a69a}
 #jarvis-panel button,#source-reader button,#galaxy button{background:#142c28;color:#c5f8e5;border:1px solid #416556;border-radius:8px;padding:7px 10px;cursor:pointer}
@@ -9,6 +10,11 @@
 #jarvis-panel input[type=checkbox]{width:auto}
 #j-status{font:11px ui-monospace,monospace;color:#e5bd76;letter-spacing:.12em}
 #j-log{flex:1;overflow:auto;min-height:90px;white-space:pre-wrap}
+#focus-card{border:1px solid #477264;border-radius:12px;background:#0a1714;padding:10px;display:flex;flex-direction:column;gap:6px}
+#focus-card h3{font:11px ui-monospace,monospace;letter-spacing:.12em;color:#9bf2cd}
+#focus-status{font:10px ui-monospace,monospace;color:#e4c47f}
+.focus-fields{display:grid;grid-template-columns:90px 1fr;gap:6px}
+.focus-fields input{padding:7px!important}
 .j-entry{padding:12px 0;border-bottom:1px solid #284038}
 .j-entry.user{color:#93c6b2;font-size:12px}
 .j-sources{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}

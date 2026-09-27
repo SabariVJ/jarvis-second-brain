@@ -22,6 +22,14 @@ async function boot(){
       <div class="sub" id="j-transcript" role="status" aria-live="polite"></div>
       <div class="j-row"><button id="j-screen">Explain current screen once</button><span id="j-screen-state" class="sub" role="status" aria-live="polite">SCREEN OFF</span></div>
       <div class="j-row"><button id="j-eyes">Look at this once</button><span id="j-camera-state" class="sub" role="status" aria-live="polite">CAMERA READY</span></div>
+      <section id="focus-card" aria-label="H.O.L.O Focus Lock">
+        <h3>H.O.L.O FOCUS LOCK</h3><div id="focus-status" class="sub" role="status" aria-live="polite">FOCUS IDLE</div><div id="focus-history" class="sub"></div>
+        <div class="focus-fields"><label class="sub">Minutes<input id="focus-minutes" type="number" min="1" max="480" value="90"></label>
+          <label class="sub">Goal<input id="focus-goal" maxlength="120" value="Deep work"></label></div>
+        <label class="sub">Allowed app names, comma separated<input id="focus-allowed" value="code.exe, devenv.exe, pycharm64.exe"></label>
+        <label class="sub">Distracting app or site titles<input id="focus-distracting" value="instagram, tiktok, youtube, reddit"></label>
+        <div class="j-row"><button id="focus-start">Start</button><button id="focus-pause">Pause</button><button id="focus-resume">Resume</button><button id="focus-stop">Stop</button></div>
+      </section>
       <div class="j-row"><button id="j-index">Reindex notes</button><button id="j-embed" hidden>Build semantic index</button><span class="sub" id="j-count"></span></div>
     </aside>
     <section id="research-cards" aria-label="Temporary research cards"></section>
@@ -184,6 +192,15 @@ async function boot(){
   function speakMute(){stopSpeech(false).catch(showError)}
   async function ask(message){if(busy||!message.trim())return;if(isCameraRequest(message)){captureCamera(message).catch(showError);return}
     if(isScreenRequest(message)){captureScreen(message).catch(showError);return}
+    if(/\bpause focus\b/i.test(message)){await focusAction('/api/focus/pause',{});entry('Focus session paused.');return}
+    if(/\bresume focus\b/i.test(message)){await focusAction('/api/focus/resume',{});entry('Focus session resumed.');return}
+    if(/\bstop focus\b/i.test(message)){await focusAction('/api/focus/stop',{});entry('Focus session stopped.');return}
+    if(/\b(start focus|focus mode|focus lock)\b/i.test(message)){
+      const duration=message.match(/\b(\d{1,3})\s*minutes?\b/i),goal=message.match(/\b(?:i am|i'm|im)\s+(.+)$/i);
+      await focusAction('/api/focus/start',{minutes:Number(duration?.[1]||$('focus-minutes').value||90),
+        goal:goal?.[1]?.replace(/[.!?]+$/,'').slice(0,120)||$('focus-goal').value,allowed_apps:focusRules('focus-allowed'),distractions:focusRules('focus-distracting')});
+      entry('Focus session started.');return;
+    }
     busy=true;await stopSpeech();$('j-send').disabled=true;status('RETRIEVING');entry(message,'user');
     const poll=setInterval(()=>api('/api/jarvis/state?session_id='+encodeURIComponent(sid)).then(s=>{if(busy)status(s.state)}).catch(()=>{}),250);
     try{const result=await api('/api/jarvis/chat',{session_id:sid,message,selected_id:selected,spoken:$('j-speak').checked});
@@ -199,6 +216,29 @@ async function boot(){
   $('j-form').onsubmit=e=>{e.preventDefault();const q=$('j-input').value;$('j-input').value='';ask(q).catch(showError)};
   $('j-screen').onclick=()=>captureScreen($('j-input').value.trim()||'What am I looking at?').catch(showError);
   $('j-eyes').onclick=()=>captureCamera($('j-input').value.trim()||'Look at this.').catch(showError);
+  function focusRules(id){return $(id).value.split(',').map(x=>x.trim()).filter(Boolean)}
+  function drawFocus(state){
+    const minutes=Math.ceil((state.remaining_seconds||0)/60),parts=[state.state];
+    if(['ACTIVE','PAUSED'].includes(state.state))parts.push(minutes+' min left',state.distraction_count+' distractions');
+    if(state.result)parts.push(state.result);
+    if(!state.monitor_supported)parts.push('app monitoring unavailable; timer only');
+    $('focus-status').textContent=parts.join(' · ');
+    const last=state.recent_sessions?.at(-1);
+    $('focus-history').textContent=last?`Last: ${last.goal} · ${last.result} · ${Math.round((last.focused_seconds||0)/60)} focused min · ${last.distraction_count} distractions`:'';
+    const active=state.state==='ACTIVE',paused=state.state==='PAUSED';
+    $('focus-start').disabled=active||paused;$('focus-pause').disabled=!active;
+    $('focus-resume').disabled=!paused;$('focus-stop').disabled=!active&&!paused;
+    if(state.warning){entry(state.warning,'assistant');if(!$('j-speak').disabled&&$('j-speak').checked&&!busy&&!speaking)speak(state.warning)}
+  }
+  async function focusAction(action,payload={}){try{const state=action==='/api/focus'?await api('/api/focus'):await api(action,payload);drawFocus(state);return state}
+    catch(e){entry(e.message||'Focus action failed.','assistant');throw e}}
+  await focusAction('/api/focus');
+  $('focus-start').onclick=()=>focusAction('/api/focus/start',{minutes:Number($('focus-minutes').value),goal:$('focus-goal').value,
+    allowed_apps:focusRules('focus-allowed'),distractions:focusRules('focus-distracting')}).catch(()=>{});
+  $('focus-pause').onclick=()=>focusAction('/api/focus/pause',{}).catch(()=>{});
+  $('focus-resume').onclick=()=>focusAction('/api/focus/resume',{}).catch(()=>{});
+  $('focus-stop').onclick=()=>focusAction('/api/focus/stop',{}).catch(()=>{});
+  setInterval(()=>focusAction('/api/focus').catch(()=>{}),5000);
   $('j-summary').onclick=()=>ask('Summarize this').catch(showError);
   $('j-index').onclick=async()=>{try{status('INDEXING');await api('/api/memory/reindex',{});await refresh();status('IDLE')}catch(e){showError(e)}};
   $('j-embed').onclick=async()=>{try{status('EMBEDDING · SENDING NOTE CHUNKS TO OPENAI');await api('/api/memory/embed',{});await refresh();status('IDLE')}catch(e){showError(e)}};

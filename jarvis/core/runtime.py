@@ -11,6 +11,7 @@ from jarvis.ai.astra import Astra
 from .orchestrator import Orchestrator
 from jarvis.research import WebResearch
 from jarvis.ai.vision import Vision
+from jarvis.focus import FocusLock
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -25,6 +26,7 @@ class Runtime:
         self.brain = Astra()
         self.research = WebResearch(model=self.brain.model)
         self.vision = Vision(model=self.brain.model)
+        self.focus = FocusLock(Path(os.environ.get('JARVIS_DATA_DIR', str(Path(root)/'data'))) / 'focus.json')
         self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research)
 
     def health(self):
@@ -35,6 +37,13 @@ class Runtime:
     def dispatch(self, method, path, data, query):
         if method == 'GET' and path == '/api/health':
             return {**self.health(),'screen_vision_enabled':self.vision.enabled}
+        if method == 'GET' and path == '/api/focus':
+            return self.focus.status()
+        if method == 'POST' and path == '/api/focus/start':
+            return self.focus.start(data.get('minutes',90),data.get('goal','Focus session'),data.get('allowed_apps'),data.get('distractions'))
+        if method == 'POST' and path == '/api/focus/pause': return self.focus.pause()
+        if method == 'POST' and path == '/api/focus/resume': return self.focus.resume()
+        if method == 'POST' and path == '/api/focus/stop': return self.focus.stop()
         if method == 'POST' and path in ('/api/vision/screen','/api/vision/camera'):
             return self.vision.analyze_frame(data.get('question'),data.get('image_data_url'))
         if method == 'GET' and path == '/api/memory/status':
