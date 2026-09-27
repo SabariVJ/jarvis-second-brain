@@ -46,8 +46,8 @@ class BriefingTests(unittest.TestCase):
     def test_aggregates_active_brain_items_focus_calendar_and_important_mail(self):
         self._source()
         with self.db.connect() as db:
-            db.execute('INSERT INTO memories VALUES(?,?,?,?,?,?)',('m1','priority','Ship the Jarvis milestone','src1',1,.9))
-            db.execute('INSERT INTO memories VALUES(?,?,?,?,?,?)',('m2','deadline','Review by Friday','src1',2,.8))
+            db.execute('INSERT INTO memories(id,category,content,source_id,created,confidence) VALUES(?,?,?,?,?,?)',('m1','priority','Ship the Jarvis milestone','src1',1,.9))
+            db.execute('INSERT INTO memories(id,category,content,source_id,created,confidence) VALUES(?,?,?,?,?,?)',('m2','deadline','Review by Friday','src1',2,.8))
             db.execute('INSERT INTO tasks VALUES(?,?,?,?)',('t1','Validate integrations','open','src1'))
             db.execute('INSERT INTO tasks VALUES(?,?,?,?)',('t2','Old completed item','completed','src1'))
             db.execute('INSERT INTO projects VALUES(?,?,?)',('p1','Jarvis','src1'))

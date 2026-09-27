@@ -11,6 +11,7 @@ class Context:
     touched: float = field(default_factory=time.monotonic)
     history: list = field(default_factory=list)
     research_cards: dict = field(default_factory=dict)
+    last_memory_id: str | None = None
     lock: Lock = field(default_factory=Lock)
 
     def select(self, doc_id):

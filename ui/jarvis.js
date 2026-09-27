@@ -20,6 +20,13 @@ async function boot(){
       <div class="j-row"><button id="j-mic">Use browser voice</button><button id="j-stop">Stop speech</button><label class="sub"><input type="checkbox" id="j-speak"> Read aloud</label><label class="sub"><input type="checkbox" id="j-wake"> Wake mode</label></div>
       <div class="sub" id="j-voice-note">Voice is opt-in and may use your browser’s online speech service.</div>
       <div class="sub" id="j-transcript" role="status" aria-live="polite"></div>
+      <section id="personal-memory-card" aria-label="Personal long-term memory">
+        <h3>PERSONAL MEMORY <span class="sub">LOCAL · USER CONTROLLED</span></h3>
+        <div class="j-row"><input id="personal-memory-query" maxlength="300" placeholder="Search saved memories"><button id="personal-memory-search" type="button">Search</button></div>
+        <div class="j-row"><select id="personal-memory-category" aria-label="Memory category"><option value="">All categories</option><option>PROFILE</option><option>PREFERENCE</option><option>PROJECT</option><option>PERSON</option><option>DECISION</option><option>WORKFLOW</option><option>EPISODE</option><option>TASK</option></select></div>
+        <form id="personal-memory-form"><label class="sub" for="personal-memory-content">Remember something explicitly</label><textarea id="personal-memory-content" maxlength="2000" rows="2" placeholder="Jarvis, remember that…"></textarea><button type="submit">Save memory</button></form>
+        <div id="personal-memory-results" role="list" aria-live="polite"></div>
+      </section>
       <div class="j-row"><button id="j-screen">Explain current screen once</button><span id="j-screen-state" class="sub" role="status" aria-live="polite">SCREEN OFF</span></div>
       <div class="j-row"><button id="j-eyes">Look at this once</button><span id="j-camera-state" class="sub" role="status" aria-live="polite">CAMERA READY</span></div>
       <section id="focus-card" aria-label="H.O.L.O Focus Lock">
@@ -180,6 +187,26 @@ async function boot(){
   async function refresh(){const [graph,memory]=await Promise.all([api('/api/graph'),api('/api/memory/status')]);galaxy?.setData(graph);$('j-count').textContent=memory.active_sources+' sources';
     if(memory.errors.length)entry('Some files could not be indexed.','assistant',[],memory.errors.map(e=>e.relative_path+': '+e.error).join('\n'))}
   await refresh();
+  async function loadPersonalMemories(){
+    const query=new URLSearchParams();if($('personal-memory-query').value.trim())query.set('q',$('personal-memory-query').value.trim());
+    if($('personal-memory-category').value)query.set('category',$('personal-memory-category').value);
+    const result=await api('/api/personal-memory'+(query.size?'?'+query.toString():'')),list=$('personal-memory-results');list.replaceChildren();
+    for(const item of result.items||[]){const row=document.createElement('article');row.className='personal-memory-item';row.dataset.id=item.id;
+      const text=document.createElement('p');text.textContent=item.content;
+      const meta=document.createElement('small');meta.textContent=`${item.category} · ${item.source_type} · importance ${item.importance}`;
+      const controls=document.createElement('div');controls.className='j-row';
+      const inspect=document.createElement('button');inspect.type='button';inspect.textContent='Why saved';inspect.onclick=async()=>{const full=await api('/api/personal-memory?id='+encodeURIComponent(item.id));text.textContent=full.content+'\nProvenance: '+full.source_type+' · '+full.source_reference};
+      const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.onclick=async()=>{const content=prompt('Update this personal memory',item.content);if(content===null)return;await api('/api/personal-memory/update',{id:item.id,content,category:item.category});await loadPersonalMemories()};
+      const forget=document.createElement('button');forget.type='button';forget.textContent='Forget';forget.onclick=async()=>{if(!confirm('Forget this saved memory?'))return;await api('/api/personal-memory/forget',{id:item.id});await loadPersonalMemories()};
+      controls.append(inspect,edit,forget);row.append(text,meta,controls);list.append(row)}
+    if(!list.children.length){const empty=document.createElement('small');empty.textContent='No saved personal memories match.';list.append(empty)}
+  }
+  $('personal-memory-search').onclick=()=>loadPersonalMemories().catch(showError);
+  $('personal-memory-category').onchange=()=>loadPersonalMemories().catch(showError);
+  $('personal-memory-form').onsubmit=async e=>{e.preventDefault();const content=$('personal-memory-content').value.trim();if(!content)return;
+    try{const saved=await api('/api/personal-memory/remember',{content,source_type:'user_explicit'});$('personal-memory-content').value='';entry('Saved personal memory · '+saved.category+' · '+saved.source_reference);await loadPersonalMemories()}
+    catch(error){showError(error)}};
+  await loadPersonalMemories();
   try{for(const card of (await api('/api/research/cards?session_id='+encodeURIComponent(sid))).cards)researchCard(card)}catch(e){showError(e)}
   $('brain-toggle').onclick=()=>{$('galaxy').hidden=!$('galaxy').hidden;$('brain-toggle').setAttribute('aria-expanded',String(!$('galaxy').hidden))};
   async function stopSpeech(interrupted=false){speechToken++;clearTimeout(speechEndTimer);speechEndTimer=null;

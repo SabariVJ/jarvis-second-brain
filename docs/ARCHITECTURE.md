@@ -18,6 +18,19 @@ Galaxy selection ───┘                         │
                       source buttons + graph focus + optional TTS
 ```
 
+## Personal long-term memory (Phase 19)
+
+Intentional personal memories live in the existing SQLite database and use a
+source record for provenance. Local users can explicitly save, inspect, edit,
+search and forget memories. A small conservative rule set may capture clear
+first-person preferences, profile facts, project statements, decisions,
+workflows, tasks and personal context; greetings, questions, research and
+external provider content are not automatically persisted. Telegram can only
+create a memory through an explicit remember command from an allowlisted user.
+Credential-like values are rejected. Expiration, importance, confidence,
+last-used time and update provenance are stored. The local Personal Memory
+panel uses text-only rendering and never treats a memory as system instruction.
+
 ## Runtime and trust
 
 The app binds only 127.0.0.1. Host and Origin checks reject DNS rebinding/cross-site

@@ -11,6 +11,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     let gmailAuth={state:'NOT CONNECTED',connected:false},gmailCalls=[];
     let calendarAuth={state:'NOT CONNECTED',connected:false},calendarCalls=[];
     let briefingCalls=0;
+    let personalMemories=[],memoryCalls=[];
     let focusState={state:'IDLE',monitor_supported:true,warning:null},focusCalls=[];
     const focusRoute=async route=>{
       const url=new URL(route.request().url()),action=url.pathname.split('/').pop();
@@ -22,6 +23,21 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(focusState)});
     };
     await page.route('**/api/focus',focusRoute);await page.route('**/api/focus/**',focusRoute);
+    await page.route('**/api/personal-memory**',async route=>{
+      const url=new URL(route.request().url()),method=route.request().method(),body=method==='POST'?route.request().postDataJSON():{};
+      memoryCalls.push({method,path:url.pathname,body});
+      if(method==='GET'){
+        const id=url.searchParams.get('id'),category=url.searchParams.get('category'),q=(url.searchParams.get('q')||'').toLowerCase();
+        const item=personalMemories.find(m=>m.id===id);
+        const result=id?(item?{...item,source_type:item.source_type,source_reference:'Explicit user request'}:{}):
+          {items:personalMemories.filter(m=>(!category||m.category===category)&&(!q||m.content.toLowerCase().includes(q)))};
+        return route.fulfill({status:id&&!item?400:200,contentType:'application/json',body:JSON.stringify(result)});
+      }
+      if(url.pathname.endsWith('/remember')){const item={id:'mem_fixture',category:'PREFERENCE',content:body.content,importance:.8,source_type:body.source_type};personalMemories=[item];return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(item)})}
+      if(url.pathname.endsWith('/update')){personalMemories[0]={...personalMemories[0],content:body.content,source_type:'user_update'};return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(personalMemories[0])})}
+      if(url.pathname.endsWith('/forget')){personalMemories=[];return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({forgotten:true,id:body.id})})}
+      return route.fulfill({status:404,contentType:'application/json',body:'{}'});
+    });
     await page.route('**/api/integrations/gmail',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(gmailAuth)}));
     await page.route('**/api/integrations/calendar',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(calendarAuth)}));
     await page.route('**/api/briefing/morning',route=>{briefingCalls++;return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
@@ -71,6 +87,20 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.waitForFunction(()=>window.__holo.gl());
     await page.waitForFunction(()=>window.__holo.hands.some(h=>h.present));
     await page.goto(base+'/');await page.waitForFunction(()=>!!window.jarvisUI);
+    await page.waitForFunction(()=>document.querySelector('#personal-memory-results').textContent.includes('No saved personal memories'));
+    await page.locator('#personal-memory-content').fill('<img src=x onerror=alert(1)>');await page.locator('#personal-memory-form button').click();
+    await page.waitForFunction(()=>document.querySelector('.personal-memory-item'));
+    assert.equal(await page.locator('.personal-memory-item img').count(),0,'memory text must be rendered safely');
+    assert.equal(memoryCalls.find(x=>x.path.endsWith('/remember')).body.source_type,'user_explicit');
+    await page.locator('#personal-memory-query').fill('onerror');await page.locator('#personal-memory-search').click();
+    await page.waitForFunction(()=>document.querySelectorAll('.personal-memory-item').length===1);
+    await page.locator('.personal-memory-item button').first().click();
+    await page.waitForFunction(()=>document.querySelector('.personal-memory-item p').textContent.includes('Provenance: user_explicit'));
+    page.once('dialog',dialog=>dialog.accept('I prefer safe text rendering.'));
+    await page.locator('.personal-memory-item button').nth(1).click();
+    await page.waitForFunction(()=>memoryCalls.some(x=>x.path.endsWith('/update')));
+    page.once('dialog',dialog=>dialog.accept());await page.locator('.personal-memory-item button').nth(2).click();
+    await page.waitForFunction(()=>document.querySelector('#personal-memory-results').textContent.includes('No saved personal memories'));
     assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
     assert.equal(await page.locator('#gmail-state').innerText(),'NOT CONNECTED');assert.equal(await page.locator('#gmail-inbox').isDisabled(),true);
     assert.equal(await page.locator('#calendar-state').innerText(),'NOT CONNECTED');assert.equal(await page.locator('#calendar-create').isDisabled(),true);

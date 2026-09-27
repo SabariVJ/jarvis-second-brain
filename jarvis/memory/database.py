@@ -36,7 +36,11 @@ CREATE INDEX IF NOT EXISTS relationship_source ON relationships(source_id);
 CREATE TABLE IF NOT EXISTS memories (
  id TEXT PRIMARY KEY, category TEXT NOT NULL, content TEXT NOT NULL,
  source_id TEXT NOT NULL REFERENCES sources(id), created REAL NOT NULL,
- confidence REAL NOT NULL CHECK(confidence BETWEEN 0 AND 1));
+ confidence REAL NOT NULL CHECK(confidence BETWEEN 0 AND 1),
+ normalized TEXT NOT NULL DEFAULT '', source_type TEXT NOT NULL DEFAULT 'document',
+ source_reference TEXT NOT NULL DEFAULT '', updated_at REAL NOT NULL DEFAULT 0,
+ importance REAL NOT NULL DEFAULT 0.5, last_used_at REAL, expires_at REAL,
+ status TEXT NOT NULL DEFAULT 'active');
 CREATE TABLE IF NOT EXISTS conversations (
  id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id), created REAL NOT NULL,
  content TEXT NOT NULL);
@@ -47,7 +51,7 @@ CREATE TABLE IF NOT EXISTS projects (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES sources(id));
 CREATE TABLE IF NOT EXISTS people (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES sources(id));
-PRAGMA user_version=1;
+PRAGMA user_version=2;
 '''
 
 class Database:
@@ -56,8 +60,26 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version > 1: raise ValueError('Database schema is newer than this application')
+            if version > 2: raise ValueError('Database schema is newer than this application')
             db.executescript(SCHEMA)
+            columns={row['name'] for row in db.execute('PRAGMA table_info(memories)')}
+            additions={
+                'normalized':"TEXT NOT NULL DEFAULT ''",
+                'source_type':"TEXT NOT NULL DEFAULT 'document'",
+                'source_reference':"TEXT NOT NULL DEFAULT ''",
+                'updated_at':'REAL NOT NULL DEFAULT 0',
+                'importance':'REAL NOT NULL DEFAULT 0.5',
+                'last_used_at':'REAL',
+                'expires_at':'REAL',
+                'status':"TEXT NOT NULL DEFAULT 'active'",
+            }
+            for name,declaration in additions.items():
+                if name not in columns: db.execute(f'ALTER TABLE memories ADD COLUMN {name} {declaration}')
+            db.execute("UPDATE memories SET normalized=lower(trim(content)) WHERE normalized=''")
+            db.execute('UPDATE memories SET updated_at=created WHERE updated_at=0')
+            db.execute('CREATE INDEX IF NOT EXISTS memory_active_category ON memories(status,category,updated_at DESC)')
+            db.execute('CREATE INDEX IF NOT EXISTS memory_normalized ON memories(normalized)')
+            db.execute('PRAGMA user_version=2')
 
     @contextmanager
     def connect(self):

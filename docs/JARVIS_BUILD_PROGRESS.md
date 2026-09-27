@@ -31,7 +31,27 @@ physical microphone acceptance remain pending. This is not complete video parity
 | 16 Gmail | Complete code/mocks/UI, OAuth user setup required | integrations/google_oauth.py, gmail.py, runtime.py, ui/jarvis.js | 44 Python tests; mocked OAuth/API, disconnected state, inbox/unread/search/thread/local summary/draft/reply/send confirmation; browser acceptance and probe 26/26 | dbde059 | User must configure local Google OAuth before live Gmail use |
 | 17 Calendar | Complete code/mocks/UI, OAuth user setup required | integrations/calendar.py, runtime.py, ui/jarvis.js | 51 Python tests; mocked today/tomorrow/range/search/free-busy and create/reschedule/cancel confirmation; browser acceptance and probe 26/26 | eda74d3 | User must configure Calendar OAuth scopes before live use |
 | 18 Morning briefing | Complete code/mocks/UI, OAuth user setup required for live data | briefing.py, runtime.py, ui/jarvis.js, H.O.L.O briefing card | 55 Python tests; disconnected/failure fallbacks, source-backed brain inputs, mock integrations, manual-only card/voice; browser acceptance and probe 26/26 | 38d6d70 | Optional Google OAuth setup for live Gmail and Calendar inputs |
-| 19–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations and memory workflows |
+| 19 Long-term Memory | Complete | memory/long_term.py, database.py, orchestrator.py, runtime.py, ui/jarvis.js | 65 Python tests green; original probe 26/26; launch.cmd health green; panel visible in browser | Pending | Playwright package unavailable for full browser automation; continue with Phase 20 |
+| 20 Telegram Remote Jarvis | Not started | MASTER_SPEC.md | — | — | Begin after Phase 19 is validated and committed |
+| 21 Invoice / Document Automation | Not started | MASTER_SPEC.md | — | — | Stop after validated commit and handoff |
+
+## Phase 19 continuation checkpoint
+
+This continuation began at `07e086e9cebfbb3ad20f3908c24251ba8554c9e5`,
+with a clean working tree. It added an opt-in personal-memory panel and
+search/inspect/update/forget API on the existing source-backed SQLite schema.
+Explicit saves reject secret-like values and non-user provenance. Narrow
+first-person significance rules may capture profile, preference, project,
+decision, workflow, person, and task facts; conversations and provider content
+are not bulk-saved. Retrieval marks personal memories separately from indexed
+notes. Schema migration, HTTP, orchestrator, provenance, and text-safe UI tests
+are included. Focused and full Python tests currently pass (65/65).
+
+The visible browser confirms the personal-memory card mounts. Full browser
+automation has not run because this checkout has no `playwright` Node package.
+`launch.cmd` serves the local health endpoint successfully on an available test
+port, and the original HOLO probe reports 26/26. Continue with Phase 20's
+allowlisted, opt-in Telegram adapter without requesting credentials in chat.
 
 ## Full checkpoint SHAs
 

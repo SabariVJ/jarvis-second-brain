@@ -15,6 +15,7 @@ from jarvis.core.context import Context
 from jarvis.core.state import StateMachine
 from jarvis.core.orchestrator import Orchestrator
 from jarvis.tools import Registry, Tool
+from jarvis.memory.long_term import LongTermMemory
 
 class BrainTests(unittest.TestCase):
     def setUp(self):
@@ -92,3 +93,30 @@ class BrainTests(unittest.TestCase):
         with self.assertRaises(PermissionError): r.execute('send',{'text':'a'})
         with self.assertRaises(ValueError): r.execute('send',{'text':'a','approved':True})
         callback.assert_not_called()
+
+    def test_intentional_personal_memory_commands_provenance_update_and_forget(self):
+        memory=LongTermMemory(self.db)
+        orch=Orchestrator(self.db,self.search,self.graph,self.brain,long_term_memory=memory)
+        saved=orch.chat('Remember that I prefer concise answers.',self.ctx,self.state)
+        self.assertEqual(saved['mode'],'personal_memory');self.assertEqual(saved['memory']['category'],'PREFERENCE')
+        found=orch.chat('What do you remember about concise answers?',self.ctx,self.state)
+        self.assertIn('personal long-term memories',found['answer'].lower())
+        why=orch.chat('Why do you know that?',self.ctx,self.state)
+        self.assertIn('explicitly requested',why['answer'])
+        corrected=orch.chat('Correct that memory to I prefer short answers.',self.ctx,self.state)
+        self.assertIn('corrected',corrected['answer'].lower())
+        self.assertEqual(memory.inspect(saved['memory']['id'])['content'],'I prefer short answers')
+        forgotten=orch.chat('Forget it.',self.ctx,self.state)
+        self.assertIn('deleted',forgotten['answer'].lower())
+        with self.db.connect() as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM memories').fetchone()[0],0)
+
+    def test_significance_capture_is_narrow_and_external_text_never_auto_persists(self):
+        memory=LongTermMemory(self.db);orch=Orchestrator(self.db,self.search,self.graph,self.brain,long_term_memory=memory)
+        captured=orch.chat('I prefer brief answers.',self.ctx,self.state)
+        self.assertEqual(captured['memory_saved']['category'],'PREFERENCE')
+        orch.chat('Hello Jarvis.',self.ctx,self.state)
+        orch.chat('I prefer unrequested external text.',self.ctx,self.state,capture_memories=False,origin='telegram')
+        with self.db.connect() as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM memories').fetchone()[0],1)
+        recall=orch.chat('What do you remember about brief answers?',self.ctx,self.state)
+        self.assertEqual(recall['mode'],'personal_memory')
+        self.assertIn('personal long-term memories',recall['answer'].lower())

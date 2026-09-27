@@ -59,6 +59,19 @@ class HTTPTests(unittest.TestCase):
             self.assertEqual(self.request(route)[0],404,route)
         self.assertEqual(self.request('/ui/app.js')[0],200)
 
+    def test_personal_memory_api_is_explicit_searchable_editable_and_forgotten(self):
+        status,raw=self.request('/api/personal-memory/remember',{'content':'I prefer concise project updates.','source_type':'user_explicit'})
+        self.assertEqual(status,200);saved=json.loads(raw);self.assertEqual(saved['category'],'PREFERENCE')
+        self.assertEqual(saved['source']['type'],'user_explicit')
+        self.assertEqual(self.request('/api/personal-memory/remember',{'content':'A visitor said I prefer concise project updates.','source_type':'research'})[0],400)
+        self.assertEqual(json.loads(self.request('/api/personal-memory')[1])['items'][0]['id'],saved['id'])
+        self.assertEqual(len(json.loads(self.request('/api/personal-memory?category=PREFERENCE')[1])['items']),1)
+        status,raw=self.request('/api/personal-memory/update',{'id':saved['id'],'content':'I prefer short project updates.','category':'PREFERENCE'})
+        self.assertEqual(status,200);self.assertEqual(json.loads(raw)['source']['type'],'user_update')
+        self.assertEqual(self.request('/api/personal-memory?id='+saved['id'])[0],200)
+        self.assertEqual(self.request('/api/personal-memory/forget',{'id':saved['id']})[0],200)
+        self.assertEqual(self.request('/api/personal-memory?id='+saved['id'])[0],400)
+
     def test_research_card_requires_own_session_and_explicit_save(self):
         from types import SimpleNamespace as NS
         from unittest.mock import Mock

@@ -54,7 +54,7 @@ class MemoryTests(unittest.TestCase):
     def test_schema_enforces_provenance(self):
         import sqlite3
         with self.assertRaises(sqlite3.IntegrityError), self.db.connect() as db:
-            db.execute("INSERT INTO memories VALUES ('m','FACT','unsupported','no-source',0,1)")
+            db.execute("INSERT INTO memories(id,category,content,source_id,created,confidence) VALUES ('m','FACT','unsupported','no-source',0,1)")
 
     def test_graph_bounded_and_focus_outside_initial_page(self):
         for i in range(12): (self.root/f'{i}.md').write_text(f'# Topic {i}\n[[Shared]]')

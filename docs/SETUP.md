@@ -191,3 +191,13 @@ Read-aloud remains governed by the existing opt-in voice checkbox. There is no
 startup speech or background schedule.
 
 Telegram and other outbound messaging remain unimplemented.
+
+## Personal long-term memory (Phase 19)
+
+Personal Memory is local to the Jarvis data directory. Use “remember that …”
+for an explicit save, or open the Personal Memory panel to search, inspect its
+provenance, edit, or forget an item. Jarvis captures only a narrow set of clear
+first-person facts and preferences; it does not save every conversation,
+research result, email, calendar item, or screen. Secret-like values are
+rejected. Saved facts can be surfaced in answers as personal memory, separate
+from indexed notes. No extra credentials are required.

@@ -15,6 +15,7 @@ from jarvis.focus import FocusLock
 from jarvis.integrations.gmail import GmailAdapter
 from jarvis.integrations.calendar import CalendarAdapter
 from jarvis.briefing import MorningBriefing
+from jarvis.memory.long_term import LongTermMemory
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -33,7 +34,8 @@ class Runtime:
         self.gmail = GmailAdapter()
         self.calendar = CalendarAdapter()
         self.briefing = MorningBriefing(self.database,self.gmail,self.calendar,self.focus)
-        self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research)
+        self.long_term_memory=LongTermMemory(self.database)
+        self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research,self.long_term_memory)
 
     def health(self):
         return {'ok': True, 'service': 'Jarvis', 'camera_required': False,
@@ -48,6 +50,16 @@ class Runtime:
         if method == 'GET' and path == '/api/integrations/gmail': return self.gmail.status()
         if method == 'GET' and path == '/api/integrations/calendar': return self.calendar.status()
         if method == 'POST' and path == '/api/briefing/morning': return self.briefing.run()
+        if method == 'GET' and path == '/api/personal-memory':
+            memory_id=query.get('id',[''])[0]
+            if memory_id:return self.long_term_memory.inspect(memory_id)
+            return {'items':self.long_term_memory.search(query.get('q',[''])[0],query.get('category',[None])[0])}
+        if method == 'POST' and path == '/api/personal-memory/remember':
+            return self.long_term_memory.capture_allowed(data.get('content'),data.get('source_type','user_explicit'))
+        if method == 'POST' and path == '/api/personal-memory/update':
+            return self.long_term_memory.update(data.get('id'),data.get('content'),data.get('category'))
+        if method == 'POST' and path == '/api/personal-memory/forget':
+            return self.long_term_memory.forget(data.get('id'))
         if method == 'POST' and path == '/api/gmail/list':
             return self.gmail.list_messages(data.get('mode','inbox'),data.get('query',''),data.get('limit',20))
         if method == 'POST' and path == '/api/gmail/thread': return self.gmail.thread(data.get('thread_id'))

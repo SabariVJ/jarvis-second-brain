@@ -11,6 +11,14 @@
 #j-status{font:11px ui-monospace,monospace;color:#e5bd76;letter-spacing:.12em}
 #j-log{flex:1;overflow:auto;min-height:90px;white-space:pre-wrap}
 #focus-card{border:1px solid #477264;border-radius:12px;background:#0a1714;padding:10px;display:flex;flex-direction:column;gap:6px}
+#personal-memory-card{border:1px solid #557465;border-radius:12px;background:#0b1715;padding:10px;display:flex;flex-direction:column;gap:7px}
+#personal-memory-card h3{font:11px ui-monospace,monospace;letter-spacing:.1em;color:#9bf2cd}
+#personal-memory-card textarea,#personal-memory-category{width:100%;background:#07100e;color:#e3ffee;border:1px solid #446255;border-radius:8px;padding:8px;font:inherit}
+#personal-memory-card textarea{resize:vertical}
+#personal-memory-results{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto}
+.personal-memory-item{border:1px solid #344d42;border-radius:8px;padding:8px;background:#091310}
+.personal-memory-item p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 5px}
+.personal-memory-item small{display:block;color:#8ead9e;margin-bottom:7px}
 #focus-card h3{font:11px ui-monospace,monospace;letter-spacing:.12em;color:#9bf2cd}
 #gmail-card{border:1px solid #536985;border-radius:12px;background:#0c131b;padding:10px;display:flex;flex-direction:column;gap:7px}
 #gmail-card h3{font:11px ui-monospace,monospace;letter-spacing:.12em;color:#b5d8ff}
