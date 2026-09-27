@@ -19,6 +19,7 @@ async function boot(){
       <form id="j-form"><label class="sub" for="j-input">Ask Jarvis</label><input id="j-input" placeholder="Find my notes about…" maxlength="4000" autocomplete="off"><div class="j-row" style="margin-top:8px"><button id="j-send">Send</button><button type="button" id="j-summary">Summarize selected</button></div></form>
       <div class="j-row"><button id="j-mic">Use browser voice</button><button id="j-stop">Stop speech</button><label class="sub"><input type="checkbox" id="j-speak"> Read aloud</label></div>
       <div class="sub" id="j-voice-note">Voice is opt-in and may use your browser’s online speech service.</div>
+      <div class="sub" id="j-transcript" role="status" aria-live="polite"></div>
       <div class="j-row"><button id="j-index">Reindex notes</button><button id="j-embed" hidden>Build semantic index</button><span class="sub" id="j-count"></span></div>
     </aside>
     <section id="research-cards" aria-label="Temporary research cards"></section>
@@ -111,14 +112,32 @@ async function boot(){
   $('j-embed').onclick=async()=>{try{status('EMBEDDING · SENDING NOTE CHUNKS TO OPENAI');await api('/api/memory/embed',{});await refresh();status('IDLE')}catch(e){showError(e)}};
   const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!Recognition){$('j-mic').disabled=true;$('j-voice-note').textContent='Speech recognition unavailable in this browser. Text mode is ready.'}
-  else {let recognition=null,voiceProcessing=false;
-    $('j-mic').onclick=async()=>{if(busy)return;if(recognition){recognition.stop();return}await stopSpeech();
-      recognition=new Recognition();recognition.lang=navigator.language||'en-US';recognition.continuous=false;recognition.interimResults=false;
-      recognition.onstart=()=>{status('LISTENING · MIC ACTIVE');$('j-mic').textContent='Stop listening'};
-      recognition.onresult=async e=>{voiceProcessing=true;const transcript=e.results[0][0].transcript;try{await api('/api/jarvis/voice-state',{session_id:sid,state:'TRANSCRIBING'});status('TRANSCRIBING');await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'});await ask(transcript)}catch(err){showError(err)}finally{voiceProcessing=false}};
-      recognition.onerror=e=>{entry('Microphone unavailable: '+e.error);status('IDLE');api('/api/jarvis/voice-state',{session_id:sid,state:'ERROR'}).catch(()=>{})};
-      recognition.onend=()=>{recognition=null;$('j-mic').textContent='Use browser voice';if(!busy&&!voiceProcessing){api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'}).catch(()=>{});status('IDLE')}};
-      try{await api('/api/jarvis/voice-state',{session_id:sid,state:'LISTENING'});recognition.start()}catch(e){recognition=null;api('/api/jarvis/voice-state',{session_id:sid,state:'ERROR'}).catch(()=>{});showError(e)}};
+  else {let recognition=null,voiceProcessing=false,voiceStarting=false;
+    const resetMic=()=>{$('j-mic').textContent='Use browser voice';$('j-mic').disabled=false};
+    $('j-mic').onclick=async()=>{if(busy||voiceProcessing||voiceStarting)return;
+      if(recognition){const current=recognition;recognition=null;current.stop();resetMic();$('j-transcript').textContent='';
+        await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'});status('IDLE');return}
+      voiceStarting=true;$('j-mic').disabled=true;
+      try{await stopSpeech();const current=new Recognition();recognition=current;
+        current.lang=navigator.language||'en-US';current.continuous=false;current.interimResults=true;
+        current.onstart=()=>{if(recognition!==current)return;voiceStarting=false;$('j-mic').disabled=false;status('LISTENING · MIC ACTIVE');$('j-mic').textContent='Stop listening'};
+        current.onresult=e=>{if(recognition!==current||voiceProcessing)return;
+          const results=Array.from(e.results||[]);const transcript=results.map(r=>r[0]?.transcript||'').join(' ').trim();
+          $('j-transcript').textContent=transcript?'Heard: '+transcript:'';
+          if(!results.some(r=>r.isFinal)||!transcript)return;
+          voiceProcessing=true;recognition=null;current.stop();resetMic();
+          (async()=>{try{await api('/api/jarvis/voice-state',{session_id:sid,state:'TRANSCRIBING'});status('TRANSCRIBING');
+            await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'});$('j-transcript').textContent='';await ask(transcript)}
+            catch(err){showError(err)}finally{voiceProcessing=false}})();
+        };
+        current.onerror=e=>{if(recognition!==current)return;recognition=null;voiceStarting=false;resetMic();
+          $('j-transcript').textContent='';entry('Microphone unavailable: '+(e.error||'unknown error'));
+          status('ERROR');api('/api/jarvis/voice-state',{session_id:sid,state:'ERROR'}).then(()=>api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})).catch(()=>{})};
+        current.onend=()=>{if(recognition!==current)return;recognition=null;voiceStarting=false;resetMic();
+          $('j-transcript').textContent='';if(!busy&&!voiceProcessing){api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'}).catch(()=>{});status('IDLE')}};
+        await api('/api/jarvis/voice-state',{session_id:sid,state:'LISTENING'});current.start();
+      }catch(e){recognition=null;voiceStarting=false;resetMic();$('j-transcript').textContent='';
+        api('/api/jarvis/voice-state',{session_id:sid,state:'ERROR'}).then(()=>api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})).catch(()=>{});showError(e)}};
   }
   window.jarvisUI={summarize:async id=>{try{await select(id);await ask('Summarize this')}catch(e){showError(e)}},select,openSource,ask,
     focus:ids=>{galaxy?.focus(ids)},get selected(){return selected}};

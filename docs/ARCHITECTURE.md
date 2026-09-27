@@ -33,9 +33,11 @@ only six short-lived messages in RAM. No default persistent transcripts or autom
 fact extraction. State events contain state/time/sequence, not source contents.
 
 All requests enter a validated state machine. Text starts at RETRIEVING; browser
-voice reports LISTENING/TRANSCRIBING, then uses the same chat route. TTS reports
-SPEAKING and stop reports INTERRUPTED. Wake states are defined for Phase 11; no
-wake-word detection is claimed. Camera is explicit through RETRY CAMERA or ?camera=1.
+voice reports LISTENING/TRANSCRIBING, then uses the same chat route. Browser
+recognition shows interim text without submitting it; only a final result enters
+chat. The microphone control can cancel listening, and failed starts reset it.
+TTS reports SPEAKING and stop reports INTERRUPTED. Wake states are defined for
+Phase 12; no wake-word detection is claimed. Camera is explicit through RETRY CAMERA or ?camera=1.
 Simulation/probe never need hardware. Existing J mode remains the gesture narrator.
 
 The tool registry only exposes validated read operations. Risk >0 is denied

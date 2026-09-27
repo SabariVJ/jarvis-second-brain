@@ -21,7 +21,9 @@ physical microphone acceptance remain pending. This is not complete video parity
 | 7 Galaxy | Complete foundation | ui/galaxy.js, jarvis.js/css, holo.html | Browser focus/select/source/expand/collapse, mouse/keyboard, sim | ba9a487 | Dedicated graph gestures later; original gestures retained |
 | 8 Voice file search | Implemented, hardware pending | browser recognition, orchestrator | Mock transcript through actual HTTP search, follow-ups | ba9a487 | Real microphone/STT test; no wake word |
 | 9 Summaries | Implemented, live pending | astra.py, orchestrator, HOLO bridge | Selected/named-source tests, mock AI, local extracts | 03815ed, ba9a487 | Live summary quality |
-| 10–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
+| 10 Live research | Complete, live credential pending | research.py, orchestrator.py, runtime.py, ui/jarvis.js | 27 Python tests, mocked SDK HTTP, browser cards/offline flow, probe 26/26 | 45719c8 | Authorized live search quality |
+| 11 Voice | Browser foundation complete, hardware pending | ui/jarvis.js | Interim/final recognition, cancel, lifecycle browser acceptance; probe 26/26 | This checkpoint | Real microphone/VAD acceptance |
+| 12–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
 
 ## Full checkpoint SHAs
 
@@ -31,17 +33,20 @@ physical microphone acceptance remain pending. This is not complete video parity
 - Memory: `f2aa1f890dfef9bffba0b99ad5b35dd5be4b1178`
 - Retrieval/brain: `03815eda290930929e79d89077b70004b29aa3e1`
 - HOLO/galaxy: `ba9a4875fd2aae283d5db7156f3a936835c43419`
+- Live research: `45719c8f17fc93a884d11aaa788eeb1a98047344`
 
 ## Final validation
 
-- Python 3.11 project environment: **20/20 tests pass, zero skips**.
+- Python 3.11 project environment: **27/27 tests pass, zero skips**.
 - Actual OpenAI SDK 2.54.0 serialization/parsing tested over mocked HTTP.
 - Actual pypdf 6.19.0 extraction tested with generated PDF text.
 - `pip check` green; compilation and diff whitespace checks green.
 - Original HOLO probe **before 26/26; after 26/26**, both props loaded.
 - Browser acceptance: simulation hands, camera-free startup, search/graph focus,
   source reader, selected summaries, follow-ups, expand/collapse, typing isolation,
-  mocked voice transcript, reindex, narrow viewport. **Zero page errors.**
+  mocked voice transcript, reindex, narrow viewport, research offline state and
+  mocked temporary-card controls, interim and final speech recognition, listening
+  cancellation. **Zero page errors.**
 - Windows launch.cmd successfully starts server.py on http://localhost:4890.
 - Sample index: eight documents/chunks/entities/edges; no extraction errors.
 - No key/live API call, microphone recording, webcam test or external message.
@@ -55,13 +60,12 @@ physical microphone acceptance remain pending. This is not complete video parity
    citations, semantic paraphrase after explicit vector indexing, and actual
    microphone transcript search independent of the camera. Record results without
    secrets or private source bodies. Mocks do not prove live account access.
-3. **Next coding task: Phase 10, live web research.** Add a typed read-only research
-   adapter returning source URL/title/snippet; mock it first. Explicitly route
-   research intent, synthesize with citations, and create temporary cards with
-   keep/dismiss/expand. Keep is the only route to permanent memory. Web content
-   cannot change tool permissions. Test citations, failures and offline mode;
-   rerun the original probe. Commit the whole validated phase, then update this
-   file before starting voice Phase 11.
+3. **Next coding task: Phase 12, opt-in wake and interruption.** Add a wake-mode
+   toggle that explicitly requests microphone permission, hears “Jarvis” only
+   while enabled, and gates recognition while TTS is playing. Stop and cancel
+   commands should interrupt speech with a short cooldown. Mock recognition and
+   speech synthesis in browser tests; check on hardware when available. Do not
+   make the current push-to-talk or camera-free startup depend on wake mode.
 4. Follow MASTER_SPEC.md sequentially. No Gmail/Calendar/Telegram credentials are
    needed until those integrations and their approval boundaries exist.
 

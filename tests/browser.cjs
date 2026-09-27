@@ -14,7 +14,8 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
         constructor(){window.testRecognition=this}
         start(){this.onstart?.()}
         stop(){this.onend?.()}
-        deliver(text){this.onresult?.({results:[[{transcript:text}]]});this.onend?.()}
+        interim(text){const row=[{transcript:text}];row.isFinal=false;this.onresult?.({results:[row]})}
+        deliver(text){const row=[{transcript:text}];row.isFinal=true;this.onresult?.({results:[row]});this.onend?.()}
       };
     });
     await page.goto(base+'/?probe=1');
@@ -49,10 +50,15 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.locator('#j-input').press('h');assert.equal(await page.locator('#hands').innerText(),hands);
     await page.locator('#j-input').fill('');
     await page.locator('#j-mic').click();await page.waitForFunction(()=>document.querySelector('#j-status').textContent.includes('MIC ACTIVE'));
+    await page.evaluate(()=>window.testRecognition.interim('Find the'));
+    assert.match(await page.locator('#j-transcript').innerText(),/Heard: Find the/);
+    assert.equal(await page.locator('#j-send').isDisabled(),false);
     await page.evaluate(()=>window.testRecognition.deliver('Find the arrow'));
     await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('THE ARROW')&&!document.querySelector('#j-send').disabled);
     assert.ok(await page.locator('.j-entry').last().locator('.j-sources button').count()>0);
     assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
+    await page.locator('#j-mic').click();await page.waitForFunction(()=>document.querySelector('#j-status').textContent.includes('MIC ACTIVE'));
+    await page.locator('#j-mic').click();await page.waitForFunction(()=>document.querySelector('#j-status').textContent==='IDLE');
     await page.locator('#j-index').click();await page.waitForFunction(()=>document.querySelector('#j-status').textContent==='IDLE');
     await page.locator('#j-input').fill('Research current alternatives to X');await page.locator('#j-send').click();
     await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('Live research needs an OpenAI API key'));
