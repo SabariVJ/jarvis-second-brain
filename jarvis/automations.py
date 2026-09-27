@@ -4,6 +4,7 @@ import json
 import re
 import secrets
 import threading
+from jarvis.security import contains_secret
 
 
 EVENTS = {'BUILD_FINISHED', 'DEADLINE_REACHED', 'FOCUS_STARTED', 'FOCUS_ENDED'}
@@ -18,6 +19,8 @@ def _text(value, label, maximum):
         raise ValueError(f'{label} must contain 1–{maximum} characters')
     if any(ord(char) < 32 and char not in '\n\t' for char in value):
         raise ValueError(f'{label} contains unsupported control characters')
+    if contains_secret(value):
+        raise ValueError(f'{label} cannot contain credentials or secrets')
     return value.strip()
 
 
@@ -196,7 +199,7 @@ class AutomationEngine:
         elif action['type'] == 'MORNING_BRIEFING':
             result = self.briefing.run()
             notification = {'automation_id': rule['id'], 'title': 'Morning briefing is ready',
-                            'message': result.get('spoken_summary', 'Open H.O.L.O to review today’s briefing.')[:500],
+                            'message': result.get('spoken', 'Open H.O.L.O to review today’s briefing.')[:500],
                             'created_at': self._now().timestamp()}
         else:
             state = self.focus.status()

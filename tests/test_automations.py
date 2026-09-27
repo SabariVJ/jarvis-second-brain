@@ -17,7 +17,7 @@ class Briefing:
     def __init__(self): self.calls = 0
     def run(self):
         self.calls += 1
-        return {'spoken_summary': 'Today: one local priority.'}
+        return {'spoken': 'Today: one local priority.'}
 
 
 class Focus:
@@ -72,6 +72,7 @@ class AutomationTests(unittest.TestCase):
         due = self.engine.run_due()
         self.assertEqual(len(due['runs']), 1)
         self.assertEqual(self.briefing.calls, 1)
+        self.assertEqual(self.engine.list()['notifications'][0]['message'], 'Today: one local priority.')
         refreshed = self.engine.get(rule['id'])
         self.assertGreater(refreshed['next_run'], self.clock().timestamp())
         self.assertEqual(len(self.engine.run_due()['runs']), 0)
@@ -106,6 +107,8 @@ class AutomationTests(unittest.TestCase):
              'action': {'type': 'LOCAL_NOTIFICATION', 'title': 'x', 'message': 'x'}},
             {'name': 'Admin', 'trigger': {'type': 'EVENT', 'event': 'BUILD_FINISHED'}, 'conditions': {},
              'action': {'type': 'LOCAL_NOTIFICATION', 'title': 'x', 'message': 'x'}, 'permission_requirement': 'L4'},
+            {'name': 'Credential leak', 'trigger': {'type': 'EVENT', 'event': 'BUILD_FINISHED'}, 'conditions': {},
+             'action': {'type': 'LOCAL_NOTIFICATION', 'title': 'x', 'message': 'API key is sk-proj-sensitivevalue123456789'}},
         ]
         for data in invalid:
             with self.subTest(data=data), self.assertRaises(ValueError): self.engine.create(data)

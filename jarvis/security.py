@@ -2,6 +2,15 @@
 import re
 from urllib.parse import urlsplit
 
+_CREDENTIALS = re.compile(
+    r'(?i)(?:\b(?:password|passphrase|api[ _-]?key|oauth(?:\s+refresh)? token|access token|refresh token|client secret|bot token)\b\s*(?:is|=|:|：)\s*\S+|'
+    r'\bsk-[a-z0-9_-]{16,}|\bgh[pousr]_[a-z0-9]{24,}|\bxox[baprs]-[a-z0-9-]{16,}|'
+    r'\b\d{6,}:[a-z0-9_-]{20,}|\bya29\.[a-z0-9._-]{16,}|\bAIza[0-9A-Za-z_-]{20,}|'
+    r'\bBearer\s+[A-Za-z0-9._~+/-]+=*)')
+
+def contains_secret(text):
+    return bool(_CREDENTIALS.search(str(text)))
+
 def local_request(headers, port, write=False):
     allowed = {f'localhost:{port}', f'127.0.0.1:{port}'}
     if headers.get('Host', '').lower() not in allowed:

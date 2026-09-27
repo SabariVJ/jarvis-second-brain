@@ -333,6 +333,19 @@ server restarts; rule definitions and run history are local persistent data.
 Gmail/Calendar event polling is not started automatically; OAuth and a
 user-authorized event source are still needed for live provider events.
 
+## Phase 31: final acceptance and hardening
+
+The shared security helper detects supported credential assignments and
+provider-token formats; long-term memory and automation text reject them before
+persistence. Tests exercise malicious instructions in indexed notes, PDF text,
+email and provider payloads, as well as one-shot screen analysis. Retrieved
+content is explicitly encoded as untrusted evidence, never model tool authority.
+Telegram sender allowlisting, Windows path/URL restrictions, approval expiry,
+and automation action allowlists are covered by regression tests. Final written-
+spec browser acceptance runs with mocked speech, image and provider responses;
+live credentials, physical microphone/camera and native Windows behavior remain
+separate user-side checks.
+
 ## Phase 10: web research
 
 An explicit “research …” or “search the web …” request calls the official Responses

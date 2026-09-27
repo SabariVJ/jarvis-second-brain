@@ -6,13 +6,11 @@ import re
 import time
 import unicodedata
 import uuid
+from ..security import contains_secret
 
 
 CATEGORIES={'PROFILE','PREFERENCE','PROJECT','PERSON','DECISION','WORKFLOW','EPISODE','TASK'}
 SOURCE_TYPES={'user_explicit','user_chat','user_update','telegram_explicit'}
-_CREDENTIALS=re.compile(
-    r'(?i)(?:\b(?:password|passphrase|api[ _-]?key|oauth(?:\s+refresh)? token|access token|refresh token|client secret|bot token)\b\s*(?:is|=|:|：)\s*\S+|'
-    r'\bsk-[a-z0-9_-]{16,}|\bgh[pousr]_[a-z0-9]{24,}|\bxox[baprs]-[a-z0-9-]{16,}|\b\d{6,}:[a-z0-9_-]{20,}|\bya29\.[a-z0-9._-]{16,})')
 _SIGNIFICANT=(
     ('PREFERENCE',re.compile(r'^(?:i prefer\b|my preferred\b|i like to\b)')),
     ('PROFILE',re.compile(r'^(?:my name is\b|call me\b|i go by\b|i am based in\b|i live in\b)')),
@@ -45,7 +43,7 @@ class LongTermMemory:
         if not isinstance(content,str) or not 2<=len(content.strip())<=2000:
             raise ValueError('Memory content must contain 2–2000 characters')
         content=' '.join(content.strip().split())
-        if _CREDENTIALS.search(content):raise ValueError('Credentials and secrets cannot be stored as memories')
+        if contains_secret(content):raise ValueError('Credentials and secrets cannot be stored as memories')
         return content
 
     @staticmethod
@@ -105,7 +103,7 @@ class LongTermMemory:
     def capture_significant(self,user_text):
         if not isinstance(user_text,str) or len(user_text)>2000:return None
         text=' '.join(user_text.strip().split())
-        if text.endswith('?') or _CREDENTIALS.search(text):return None
+        if text.endswith('?') or contains_secret(text):return None
         lower=text.casefold()
         if lower.startswith(('remember ','what do you remember','forget ','update what you remember','correct that memory','don\'t remember','do not remember')):return None
         category=next((cat for cat,pattern in _SIGNIFICANT if pattern.search(lower)),None)

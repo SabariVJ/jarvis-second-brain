@@ -1,4 +1,4 @@
-# JARVIS build progress — continuation through Phase 30, 2026-09-28
+# JARVIS build progress — continuation through Phase 31, 2026-09-28
 
 Branch: `jarvis-second-brain`.
 Phase 22–31 run start SHA: `169d50e08a14823622d2a586035eb688054944ef`.
@@ -43,6 +43,7 @@ acceptance remain pending. This is not a full video-parity claim.
 | 28 Offline / Degraded Mode | Complete | tests/test_degraded_mode.py, core/runtime.py, docs/SETUP.md | 105 Python tests; network-blocked startup, Astra/embedding/vision/Gmail/Calendar/Telegram disabled, local note search + graph and clear status; camera-free browser and launch validation | SHA in `../FINAL_HANDOFF.md` | None |
 | 29 Privacy Hardening | Complete foundation | security.py, ui/jarvis.js/css, Telegram, vision, Context | 106 Python tests; secret formats redacted, global mute stops mocked active recognition and blocks voice/wake; transient audio/image flows and visible indicators reviewed; browser acceptance zero page errors, probe 26/26 | a13abdb | Physical microphone release test remains pending |
 | 30 Automation Engine | Complete, provider event sources require their own authorized adapters | automations.py, memory/database.py, core/runtime.py, server.py, ui/jarvis.js/css | 113 Python tests; daily schedule, local event/state/provider hooks, audit, CRUD, disabled-by-default lifecycle; prompt-injection/external-action rejection; launch.cmd camera-free; browser acceptance zero page errors; original probe 26/26 | recorded in `../FINAL_HANDOFF.md` | Gmail/Calendar provider event subscriptions are not polled; physical/live integration acceptance remains pending |
+| 31 Full System Hardening + Video-Parity Acceptance | Complete written-spec acceptance; live devices/providers pending | security.py, automations.py, memory/long_term.py, tests | 116 Python tests; malicious note/PDF/email/provider content stays data, screen instructions remain untrusted, Telegram allowlist, path and approval expiry checks, shared secret detector; browser zero page errors; launch/simulation/camera-free; probe 26/26 | recorded in `../FINAL_HANDOFF.md` | Authorized live APIs and physical devices require user setup |
 
 ## Phase 19 continuation checkpoint
 
@@ -119,9 +120,8 @@ No Telegram token or provider key was supplied.
 
 ## Exact continuation point
 
-Phases 0–30 are complete. Continue at Phase 31 — Full System Hardening +
-Video-Parity Acceptance from the exact Phase 30 commit recorded in the sibling
-`../FINAL_HANDOFF.md`. Preserve Phases 0–30; do not restart or redesign them.
+Phases 0–31 are complete. This requested continuation stops here. Preserve the
+validated repository; await the user's Phase 32 specification before continuing.
 
 The only pending checks require the user's own accounts or physical hardware:
 Telegram bot token and user allowlist; optional OpenAI key for voice-note
@@ -148,3 +148,28 @@ could not be retrieved; validation uses the supplied written specification.
 The exact final delivery SHA is recorded in the sibling `../FINAL_HANDOFF.md`
 after the final commit, avoiding a self-referential commit hash. `git rev-parse
 HEAD` is authoritative. All validated source and documentation are committed.
+
+## Phase 31 final acceptance — 2026-09-28
+
+- Run started at Phase 21 SHA `169d50e08a14823622d2a586035eb688054944ef`;
+  Phase 30 checkpoint was `6a6ebcfefe961cb4892f3f1da7773f55d9fb010e`.
+- Python: **116/116 passed**. Original H.O.L.O probe: **26/26** with both props.
+- Browser acceptance: PASS, zero page errors; tested simulation, camera-free
+  startup, context, source-backed chat, cards, settings, local automation CRUD,
+  approvals, mocked Gmail/Calendar, invoice/document, voice interruption/wake/
+  mute, transient screen/camera paths, Focus Lock and responsive viewport.
+- `launch.cmd`: PASS on an isolated port and temporary data. Health reports local
+  mode, `camera_required=false`, `microphone_required=false`; simulation and probe
+  routes return HTTP 200. `pip check`, Python compile, JavaScript syntax and Git
+  whitespace checks pass.
+- Security review: retrieval, web research, email, generated/indexed PDF and
+  screen content remain untrusted data; no content-derived approval or shell
+  execution; Telegram sender allowlist enforced; Windows paths and public URLs
+  constrained; expired approvals do not execute; secret detector/redactor covers
+  supported OpenAI, Google, GitHub, bearer, Telegram and credential-assignment
+  forms. No live provider write was performed.
+- Isolated 1,000-note benchmark: index/startup 1.37 s, local search 107 ms,
+  focused graph 12 ms on this host. This is a synthetic local measurement, not a
+  large production-vault guarantee.
+- Exact Phase 31 SHA is in the sibling `../FINAL_HANDOFF.md`. No Phase 32 task was
+  supplied; stop after this checkpoint.
