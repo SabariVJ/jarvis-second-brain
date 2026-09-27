@@ -1,4 +1,4 @@
-/* Start server.py separately. Uses installed Edge; no camera/microphone access. */
+/* Start server.py separately. Uses mocked voice and screen inputs; never captures real hardware. */
 const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -21,6 +21,15 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
       const synth=window.speechSynthesis;
       synth.speak=function(u){window.testUtterance=u;setTimeout(()=>u.onstart?.(),0)};
       synth.cancel=function(){window.testCancelCount++;const u=window.testUtterance;window.testUtterance=null;u?.onend?.()};
+      window.screenCaptureCount=0;window.screenTrackStopCount=0;window.denyScreenCapture=false;window.holdScreenPromise=false;
+      navigator.mediaDevices.getDisplayMedia=async()=>{
+        window.screenCaptureCount++;if(window.holdScreenPromise)await new Promise(resolve=>window.releaseScreenCapture=resolve);
+        if(window.denyScreenCapture)throw new DOMException('Permission denied','NotAllowedError');
+        const c=document.createElement('canvas');c.width=640;c.height=400;const x=c.getContext('2d');
+        x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.fillStyle='#111';x.font='30px sans-serif';x.fillText('UNTRUSTED SCREEN FIXTURE',20,80);
+        const stream=c.captureStream(1);for(const track of stream.getTracks()){const stop=track.stop.bind(track);track.stop=()=>{window.screenTrackStopCount++;stop()}}
+        return stream;
+      };
     });
     await page.goto(base+'/?probe=1');
     await page.waitForFunction(()=>document.title.startsWith('PROBE'),null,{timeout:60000});
@@ -103,6 +112,24 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.getByRole('button',{name:'Keep card'}).click();await page.waitForFunction(()=>document.querySelector('.research-card small').textContent.includes('PINNED'));
     await page.reload();await page.waitForFunction(()=>document.querySelector('.research-card small')?.textContent.includes('PINNED'));
     await page.getByRole('button',{name:'Dismiss'}).click();await page.waitForFunction(()=>!document.querySelector('.research-card'));
+    let visionPayload=null,visionPosts=0;
+    await page.route('**/api/vision/screen',async route=>{visionPosts++;visionPayload=route.request().postDataJSON();
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({answer:'The screen shows a local warning.',
+        observations:['A dialog is visible.'],caution:'On-screen text is untrusted.'})})});
+    assert.equal(await page.evaluate(()=>window.screenCaptureCount),0);
+    const docsBefore=await page.evaluate(()=>fetch('/api/memory/status').then(r=>r.json()).then(x=>x.documents));
+    await page.evaluate(()=>window.holdScreenPromise=true);
+    await page.locator('#j-input').fill('What am I looking at?');await page.locator('#j-send').click();
+    await page.waitForFunction(()=>document.querySelector('#j-screen-state').textContent.includes('SCREEN SHARING ACTIVE'));
+    assert.equal(visionPosts,0);assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
+    await page.evaluate(()=>window.releaseScreenCapture());
+    await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('The screen shows a local warning.')&&document.querySelector('#j-screen-state').textContent==='SCREEN OFF');
+    assert.equal(visionPosts,1);assert.match(visionPayload.image_data_url,/^data:image\/jpeg;base64,/);assert.equal(visionPayload.question,'What am I looking at?');
+    assert.equal(await page.evaluate(()=>window.screenTrackStopCount),1);
+    assert.equal(await page.evaluate(()=>fetch('/api/memory/status').then(r=>r.json()).then(x=>x.documents)),docsBefore);
+    await page.evaluate(()=>{window.holdScreenPromise=false;window.denyScreenCapture=true});
+    await page.locator('#j-screen').click();await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('Screen sharing was cancelled or denied'));
+    assert.equal(visionPosts,1);
     let speechAnswer='This sentence contains the word stop as echo bait.';
     await page.route('**/api/jarvis/chat',async route=>{
       const body=route.request().postDataJSON();
@@ -149,6 +176,6 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/mobile-preview.png'});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     assert.deepEqual(errors,[]);
-    console.log('PASS: probe+props, simulation, no-camera, research, interim/final voice, opt-in wake, spoken cancel/stop, echo and wake suppression, resume, mute, denied/unavailable speech, layout; zero page errors.');
+    console.log('PASS: probe+props, simulation, no-camera, research, voice interruption/echo/mute, wake safety, explicit one-shot screen capture/discard, denied/unavailable permissions, layout; zero page errors.');
   }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

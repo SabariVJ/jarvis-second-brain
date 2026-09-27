@@ -179,7 +179,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(403, {"error": "Local JSON requests only"})
         try:
             n = int(self.headers.get('Content-Length', '0'))
-            if n <= 0 or n > 65536: return self._send(413, {'error': 'Invalid request size'})
+            limit = 800_000 if urlsplit(self.path).path == '/api/vision/screen' else 65536
+            if n <= 0 or n > limit: return self._send(413, {'error': 'Invalid request size'})
             data = json.loads(self.rfile.read(n))
             if not isinstance(data, dict): raise ValueError('Object required')
         except (ValueError, UnicodeError):

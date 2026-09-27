@@ -23,8 +23,9 @@ physical microphone acceptance remain pending. This is not complete video parity
 | 9 Summaries | Implemented, live pending | astra.py, orchestrator, HOLO bridge | Selected/named-source tests, mock AI, local extracts | 03815ed, ba9a487 | Live summary quality |
 | 10 Live research | Complete, live credential pending | research.py, orchestrator.py, runtime.py, ui/jarvis.js | 27 Python tests, mocked SDK HTTP, browser cards/offline flow, probe 26/26 | 45719c8 | Authorized live search quality |
 | 11 Voice | Browser foundation complete, hardware pending | ui/jarvis.js | Interim/final recognition, cancel, lifecycle browser acceptance; probe 26/26 | 780f1cc | Real microphone/VAD acceptance |
-| 12 Wake/interruption | Complete, hardware acceptance pending | ui/jarvis.js, runtime.py | Mock stop/cancel/enough, echo filter, TTS wake suppression/resume, mute, denied/unavailable speech; probe 26/26 | This checkpoint | Real microphone/acoustic acceptance |
-| 13–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
+| 12 Wake/interruption | Complete, hardware acceptance pending | ui/jarvis.js, runtime.py | Mock stop/cancel/enough, echo filter, TTS wake suppression/resume, mute, denied/unavailable speech; probe 26/26 | 1cdad6a | Real microphone/acoustic acceptance |
+| 13 Screen vision | Complete, live key acceptance pending | ai/vision.py, runtime.py, server.py, ui/jarvis.js | 32 Python tests, prompt boundary/image validation, explicit picker/capture/discard, mocked endpoint; probe 26/26 | Commit below | Live vision account acceptance |
+| 14–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
 
 ## Full checkpoint SHAs
 
@@ -37,11 +38,12 @@ physical microphone acceptance remain pending. This is not complete video parity
 - Live research: `45719c8f17fc93a884d11aaa788eeb1a98047344`
 - Browser voice: `780f1cca7b8a366fe1c805b662736f8b51fb299c`
 - Opt-in wake: `ef50b56cabca4e24664c9dc1641566dd62a792da`
-- Phase 12 spoken interruption: pending final validation and commit
+- Phase 12 spoken interruption: `1cdad6ac3bd193ddbe322b8dc2d75d9eb6d58ede`
+- Phase 13 screen vision: validated; commit below
 
 ## Final validation
 
-- Python 3.11 project environment: **27/27 tests pass, zero skips**.
+- Python 3.11 project environment: **32/32 tests pass, zero skips**.
 - Actual OpenAI SDK 2.54.0 serialization/parsing tested over mocked HTTP.
 - Actual pypdf 6.19.0 extraction tested with generated PDF text.
 - `pip check` green; compilation and diff whitespace checks green.
@@ -52,7 +54,8 @@ physical microphone acceptance remain pending. This is not complete video parity
   mocked temporary-card controls, interim and final speech recognition, listening
   cancellation, opt-in wake command, spoken interruption and mute, echo and
   wake suppression during playback, wake resume, denied/unavailable speech.
-  **Zero page errors.**
+  One-shot screen chooser, indicator, transient JPEG request, immediate track
+  release, denied sharing, and unchanged memory document count. **Zero page errors.**
 - Windows launch.cmd successfully starts server.py on http://localhost:4890.
 - Sample index: eight documents/chunks/entities/edges; no extraction errors.
 - No key/live API call, microphone recording, webcam test or external message.
@@ -66,12 +69,11 @@ physical microphone acceptance remain pending. This is not complete video parity
    citations, semantic paraphrase after explicit vector indexing, and actual
    microphone transcript search independent of the camera. Record results without
    secrets or private source bodies. Mocks do not prove live account access.
-3. **Next coding task: Phase 13, opt-in screen understanding.** Capture a single
-   frame only after a user request, show a SCREEN ACTIVE indicator, discard the
-   image after analysis, and treat all screen text as untrusted input. Keep
-   camera-free startup and simulation working. Add a mock vision response and
-   browser tests for explicit activation, failure and no persistence. Then
-   proceed sequentially through the later phases.
+3. **Next coding task: Phase 14, Jarvis Eyes camera abstraction.** Add a clear
+   CAMERA_UNAVAILABLE / READY / ACTIVE / ERROR adapter around the existing
+   browser camera access. Capture one frame only after explicit “look at this”,
+   analyze through the vision adapter, then discard. Keep MediaPipe/H.O.L.O,
+   simulation and camera-free startup unchanged; use a fake frame in tests.
 4. Follow MASTER_SPEC.md sequentially. No Gmail/Calendar/Telegram credentials are
    needed until those integrations and their approval boundaries exist.
 

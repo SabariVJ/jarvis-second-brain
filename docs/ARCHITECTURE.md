@@ -21,7 +21,8 @@ Galaxy selection ───┘                         │
 ## Runtime and trust
 
 The app binds only 127.0.0.1. Host and Origin checks reject DNS rebinding/cross-site
-access; write requests require JSON and have a 64 KiB limit. No CORS headers are
+access; write requests require JSON and have a 64 KiB limit, except the bounded
+single-screen-image endpoint (800 KiB). No CORS headers are
 emitted. Static serving is limited to vendor, props and ui with resolved path
 containment. Notes cannot escape their configured root via symlinks. Data, .env,
 Python source and Git are never statically served. This protects a local browser
@@ -45,6 +46,14 @@ ends. Read-aloud mute and Stop speech both cancel the utterance. Browser speech
 recognition is online in some browsers, and acoustic behavior still needs local
 hardware acceptance. Camera is explicit through RETRY CAMERA or ?camera=1.
 Simulation/probe never need hardware. Existing J mode remains the gesture narrator.
+
+Screen analysis starts only from an explicit screen question or the one-shot
+screen button. The browser display chooser selects a monitor, window or tab; one
+scaled JPEG frame is captured, the display tracks are stopped, and only then is
+the image sent for analysis. The screenshot is bounded, processed in memory and
+never added to notes, chat history or logs. Screen text is untrusted image data;
+vision returns a bounded structured answer and observations, with no tools or
+ability to click controls. Live analysis needs the user's OpenAI configuration.
 
 The tool registry only exposes validated read operations. Risk >0 is denied
 unconditionally, with no `approved=true` bypass. A proper single-use approval
@@ -124,6 +133,7 @@ Original APIs are preserved; GET /api/state was added. New endpoints:
 | POST | /api/jarvis/context | Select/clear verified document ID |
 | POST | /api/jarvis/chat | Text or recognized transcript |
 | POST | /api/jarvis/voice-state | Validated client voice lifecycle |
+| POST | /api/vision/screen | Single transient JPEG analysis, bounded and not persisted |
 | GET | /api/memory/status | Counts and extraction errors |
 | POST | /api/memory/reindex | Scan configured root only |
 | POST | /api/memory/embed | Build explicitly enabled cloud vectors |

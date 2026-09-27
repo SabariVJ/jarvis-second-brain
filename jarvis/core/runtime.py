@@ -10,6 +10,7 @@ from jarvis.memory.retrieval import Retrieval
 from jarvis.ai.astra import Astra
 from .orchestrator import Orchestrator
 from jarvis.research import WebResearch
+from jarvis.ai.vision import Vision
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -23,6 +24,7 @@ class Runtime:
         self.retrieval = Retrieval(self.database, self.embeddings)
         self.brain = Astra()
         self.research = WebResearch(model=self.brain.model)
+        self.vision = Vision(model=self.brain.model)
         self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research)
 
     def health(self):
@@ -32,7 +34,9 @@ class Runtime:
 
     def dispatch(self, method, path, data, query):
         if method == 'GET' and path == '/api/health':
-            return self.health()
+            return {**self.health(),'screen_vision_enabled':self.vision.enabled}
+        if method == 'POST' and path == '/api/vision/screen':
+            return self.vision.analyze_screen(data.get('question'),data.get('image_data_url'))
         if method == 'GET' and path == '/api/memory/status':
             return {**self.database.status(), 'last_scan':self.index_result}
         if method == 'POST' and path == '/api/memory/reindex':

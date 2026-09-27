@@ -31,7 +31,7 @@ py -m venv .venv
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-20 Python tests cover states, isolation, security, ingestion, provenance, search,
+32 Python tests cover states, isolation, security, ingestion, provenance, search,
 mocked vectors, source selection, SDK wire contract and actual PDF parsing. Without
 optional packages two integration tests skip; that is not a full acceptance pass.
 
@@ -44,9 +44,9 @@ npm run test:browser
 
 It asserts 26/26 and two loaded props (preventing silent prop skips), runs simulation,
 no-camera startup, search/source/summary follow-ups, graph expand/collapse,
-keyboard isolation, mocked voice transcript transport, reindex, narrow viewport
-and zero page errors. Screenshots go to ignored test-results/. It never activates
-real microphone or camera. Browser tests expect the supplied sample-notes folder
+keyboard isolation, mocked voice and screen capture, interruption/echo cases,
+reindex, narrow viewport and zero page errors. Screenshots go to ignored
+test-results/. It never activates real microphone, screen share or camera. Browser tests expect the supplied sample-notes folder
 and local/offline AI configuration; point tests at a separate local instance if
 your production notes or credentials are configured.
 
@@ -109,13 +109,22 @@ Official references checked 2026-09-27:
 - https://developers.openai.com/api/docs/models/gpt-6-astra
 - https://developers.openai.com/api/docs/quickstart
 
-## Voice and later integrations
+## Voice and screen understanding
 
-Use browser voice is push-to-talk style, not wake-word detection. Browser speech
-recognition may use its vendor's online service. It has no dependency on the
-camera. Read aloud uses browser TTS; Stop speech cancels playback. Actual device
-availability, recognition quality and speech output require local physical testing.
-Wake word, VAD, streaming and reliable barge-in are later phases.
+Use browser voice is push-to-talk or opt-in wake mode. Browser speech recognition
+may use its vendor's online service. It has no dependency on the camera. While
+Jarvis speaks, exact interruption phrases can stop playback; recognition pauses
+for cooldown and suppresses phrases found in the answer being spoken. Actual
+device availability and acoustic echo behavior require local microphone testing.
+
+Screen analysis starts from an explicit screen question or the “Explain current
+screen once” button. The browser chooser asks which monitor, window or tab to
+share. Jarvis captures one scaled JPEG frame, stops the display tracks, and sends
+the frame for analysis. It does not save the screenshot in notes or history.
+This uses the configured OpenAI API key and can incur usage charges. On-screen
+text is treated as untrusted data; Jarvis cannot click controls. Browser tests use
+a generated fixture image and do not open the real screen chooser.
+The image adapter follows the [Responses API image input guide](https://developers.openai.com/api/docs/guides/images-vision).
 
 Gmail, Calendar and Telegram are **not implemented** in this foundation. There is
 no connection setup to perform yet; do not add tokens speculatively. Implement

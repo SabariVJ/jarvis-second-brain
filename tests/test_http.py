@@ -88,3 +88,15 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request('/api/research/card',{'session_id':a,'card_id':card['id'],'action':'dismiss'})[0],200)
         self.assertEqual(json.loads(self.request('/api/research/cards?session_id='+a)[1])['cards'],[])
         self.assertEqual(server.RUNTIME.database.status()['active_sources'],2)
+
+    def test_explicit_screen_vision_is_transient_and_session_free(self):
+        from unittest.mock import Mock
+        server.RUNTIME.vision=Mock()
+        server.RUNTIME.vision.analyze_screen.return_value={
+            'answer':'The screen shows an error.', 'observations':['Error dialog'], 'caution':''}
+        initial=server.RUNTIME.database.status()['documents']
+        payload={'question':'Explain this screen','image_data_url':'data:image/jpeg;base64,/9j/eA=='}
+        status,raw=self.request('/api/vision/screen',payload)
+        self.assertEqual(status,200);self.assertEqual(json.loads(raw)['answer'],'The screen shows an error.')
+        server.RUNTIME.vision.analyze_screen.assert_called_once_with(payload['question'],payload['image_data_url'])
+        self.assertEqual(server.RUNTIME.database.status()['documents'],initial)
