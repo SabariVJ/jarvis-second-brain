@@ -92,11 +92,14 @@ class HTTPTests(unittest.TestCase):
     def test_explicit_screen_vision_is_transient_and_session_free(self):
         from unittest.mock import Mock
         server.RUNTIME.vision=Mock()
-        server.RUNTIME.vision.analyze_screen.return_value={
+        server.RUNTIME.vision.analyze_frame.return_value={
             'answer':'The screen shows an error.', 'observations':['Error dialog'], 'caution':''}
         initial=server.RUNTIME.database.status()['documents']
         payload={'question':'Explain this screen','image_data_url':'data:image/jpeg;base64,/9j/eA=='}
         status,raw=self.request('/api/vision/screen',payload)
         self.assertEqual(status,200);self.assertEqual(json.loads(raw)['answer'],'The screen shows an error.')
-        server.RUNTIME.vision.analyze_screen.assert_called_once_with(payload['question'],payload['image_data_url'])
+        server.RUNTIME.vision.analyze_frame.assert_called_once_with(payload['question'],payload['image_data_url'])
+        camera={'question':'What am I holding?','image_data_url':payload['image_data_url']}
+        self.assertEqual(self.request('/api/vision/camera',camera)[0],200)
+        server.RUNTIME.vision.analyze_frame.assert_called_with(camera['question'],camera['image_data_url'])
         self.assertEqual(server.RUNTIME.database.status()['documents'],initial)

@@ -35,8 +35,8 @@ class Runtime:
     def dispatch(self, method, path, data, query):
         if method == 'GET' and path == '/api/health':
             return {**self.health(),'screen_vision_enabled':self.vision.enabled}
-        if method == 'POST' and path == '/api/vision/screen':
-            return self.vision.analyze_screen(data.get('question'),data.get('image_data_url'))
+        if method == 'POST' and path in ('/api/vision/screen','/api/vision/camera'):
+            return self.vision.analyze_frame(data.get('question'),data.get('image_data_url'))
         if method == 'GET' and path == '/api/memory/status':
             return {**self.database.status(), 'last_scan':self.index_result}
         if method == 'POST' and path == '/api/memory/reindex':

@@ -24,8 +24,9 @@ physical microphone acceptance remain pending. This is not complete video parity
 | 10 Live research | Complete, live credential pending | research.py, orchestrator.py, runtime.py, ui/jarvis.js | 27 Python tests, mocked SDK HTTP, browser cards/offline flow, probe 26/26 | 45719c8 | Authorized live search quality |
 | 11 Voice | Browser foundation complete, hardware pending | ui/jarvis.js | Interim/final recognition, cancel, lifecycle browser acceptance; probe 26/26 | 780f1cc | Real microphone/VAD acceptance |
 | 12 Wake/interruption | Complete, hardware acceptance pending | ui/jarvis.js, runtime.py | Mock stop/cancel/enough, echo filter, TTS wake suppression/resume, mute, denied/unavailable speech; probe 26/26 | 1cdad6a | Real microphone/acoustic acceptance |
-| 13 Screen vision | Complete, live key acceptance pending | ai/vision.py, runtime.py, server.py, ui/jarvis.js | 32 Python tests, prompt boundary/image validation, explicit picker/capture/discard, mocked endpoint; probe 26/26 | Commit below | Live vision account acceptance |
-| 14–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
+| 13 Screen vision | Complete, live key acceptance pending | ai/vision.py, runtime.py, server.py, ui/jarvis.js | 32 Python tests, prompt boundary/image validation, explicit picker/capture/discard, mocked endpoint; probe 26/26 | 77cfd8e | Live vision account acceptance |
+| 14 Jarvis Eyes | Complete, hardware/key acceptance pending | ai/vision.py, runtime.py, ui/jarvis.js | Camera states, fake frame, track disposal, unavailable/denied paths; no-camera simulation green | This checkpoint | Physical camera acceptance |
+| 15–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
 
 ## Full checkpoint SHAs
 
@@ -39,7 +40,8 @@ physical microphone acceptance remain pending. This is not complete video parity
 - Browser voice: `780f1cca7b8a366fe1c805b662736f8b51fb299c`
 - Opt-in wake: `ef50b56cabca4e24664c9dc1641566dd62a792da`
 - Phase 12 spoken interruption: `1cdad6ac3bd193ddbe322b8dc2d75d9eb6d58ede`
-- Phase 13 screen vision: validated; commit below
+- Phase 13 screen vision: `77cfd8e618b29a22bdc2deae127d47c022748ad1`
+- Phase 14 Jarvis Eyes: validated; commit below
 
 ## Final validation
 
@@ -55,7 +57,8 @@ physical microphone acceptance remain pending. This is not complete video parity
   cancellation, opt-in wake command, spoken interruption and mute, echo and
   wake suppression during playback, wake resume, denied/unavailable speech.
   One-shot screen chooser, indicator, transient JPEG request, immediate track
-  release, denied sharing, and unchanged memory document count. **Zero page errors.**
+  release, denied sharing, one-shot camera frame, track disposal, missing/denied
+  camera states, and unchanged memory document count. **Zero page errors.**
 - Windows launch.cmd successfully starts server.py on http://localhost:4890.
 - Sample index: eight documents/chunks/entities/edges; no extraction errors.
 - No key/live API call, microphone recording, webcam test or external message.
@@ -69,11 +72,11 @@ physical microphone acceptance remain pending. This is not complete video parity
    citations, semantic paraphrase after explicit vector indexing, and actual
    microphone transcript search independent of the camera. Record results without
    secrets or private source bodies. Mocks do not prove live account access.
-3. **Next coding task: Phase 14, Jarvis Eyes camera abstraction.** Add a clear
-   CAMERA_UNAVAILABLE / READY / ACTIVE / ERROR adapter around the existing
-   browser camera access. Capture one frame only after explicit “look at this”,
-   analyze through the vision adapter, then discard. Keep MediaPipe/H.O.L.O,
-   simulation and camera-free startup unchanged; use a fake frame in tests.
+3. **Next coding task: Phase 15, Windows Focus Lock.** Add an opt-in foreground
+   process/window-title sampler; never capture keys or screen content. Persist
+   only session statistics and user-selected allow/distraction rules locally.
+   Add start/pause/resume/stop controls, concise interventions, a H.O.L.O Focus
+   card, and tests with a mocked sampler.
 4. Follow MASTER_SPEC.md sequentially. No Gmail/Calendar/Telegram credentials are
    needed until those integrations and their approval boundaries exist.
 

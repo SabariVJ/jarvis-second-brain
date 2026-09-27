@@ -21,6 +21,7 @@ async function boot(){
       <div class="sub" id="j-voice-note">Voice is opt-in and may use your browser’s online speech service.</div>
       <div class="sub" id="j-transcript" role="status" aria-live="polite"></div>
       <div class="j-row"><button id="j-screen">Explain current screen once</button><span id="j-screen-state" class="sub" role="status" aria-live="polite">SCREEN OFF</span></div>
+      <div class="j-row"><button id="j-eyes">Look at this once</button><span id="j-camera-state" class="sub" role="status" aria-live="polite">CAMERA READY</span></div>
       <div class="j-row"><button id="j-index">Reindex notes</button><button id="j-embed" hidden>Build semantic index</button><span class="sub" id="j-count"></span></div>
     </aside>
     <section id="research-cards" aria-label="Temporary research cards"></section>
@@ -75,6 +76,23 @@ async function boot(){
   }
   function showError(e){status('ERROR');entry(e.message||'Operation unavailable','assistant')}
   function isScreenRequest(message){return /\b(screen|what am i looking at|what button should i click|why is this error happening|explain this screen)\b/i.test(message)}
+  function isCameraRequest(message){return /\b(look at this|what am i holding|what is in front of me)\b/i.test(message)}
+  async function frameJpeg(stream){
+    const track=stream.getVideoTracks()[0];if(!track)throw new Error('No visual source was selected');
+    const video=document.createElement('video');video.muted=true;video.playsInline=true;video.srcObject=stream;
+    try{await video.play();if(!video.videoWidth)await new Promise((resolve,reject)=>{
+      const timeout=setTimeout(()=>reject(new Error('Video frame was unavailable')),4000);
+      video.addEventListener('loadedmetadata',()=>{clearTimeout(timeout);resolve()},{once:true});
+    });
+      const scale=Math.min(1,1280/video.videoWidth,800/video.videoHeight),canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(video.videoWidth*scale));canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
+      canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);let imageDataUrl='';
+      for(const quality of [.62,.5,.38]){imageDataUrl=canvas.toDataURL('image/jpeg',quality);if((imageDataUrl.length-23)*.75<500000)break}
+      canvas.width=canvas.height=1;
+      if((imageDataUrl.length-23)*.75>512000)throw new Error('Visual frame is too large to send safely');
+      return imageDataUrl;
+    }finally{video.srcObject=null}
+  }
   async function captureScreen(question){
     if(busy)return;const chooser=navigator.mediaDevices?.getDisplayMedia;
     if(!chooser){entry('Screen sharing is unavailable in this browser or context.','assistant');return}
@@ -83,27 +101,36 @@ async function boot(){
     catch(e){entry('Screen capture was not started. Click Explain current screen once and allow a display in the browser chooser.','assistant');return}
     busy=true;$('j-send').disabled=true;$('j-screen').disabled=true;$('j-screen-state').textContent='SCREEN SHARING ACTIVE · CAPTURING ONE FRAME';
     status('SCREEN SHARING ACTIVE');await stopSpeech();entry(question,'user');
-    let stream=null,video=null,imageDataUrl='';
+    let stream=null,imageDataUrl='';
     try{
-      stream=await permission;const track=stream.getVideoTracks()[0];if(!track)throw new Error('No screen was selected');
-      video=document.createElement('video');video.muted=true;video.playsInline=true;video.srcObject=stream;
-      await video.play();if(!video.videoWidth)await new Promise((resolve,reject)=>{
-        const timeout=setTimeout(()=>reject(new Error('Screen frame was unavailable')),4000);
-        video.addEventListener('loadedmetadata',()=>{clearTimeout(timeout);resolve()},{once:true});
-      });
-      const scale=Math.min(1,1280/video.videoWidth,800/video.videoHeight),canvas=document.createElement('canvas');
-      canvas.width=Math.max(1,Math.round(video.videoWidth*scale));canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
-      const ctx=canvas.getContext('2d');ctx.drawImage(video,0,0,canvas.width,canvas.height);
-      for(const quality of [.62,.5,.38]){imageDataUrl=canvas.toDataURL('image/jpeg',quality);if((imageDataUrl.length-23)*.75<500000)break}
-      if((imageDataUrl.length-23)*.75>512000)throw new Error('Screen image is too large to send safely');
-      canvas.width=canvas.height=1;$('j-screen-state').textContent='SCREEN ANALYZING · IMAGE CAPTURED ONCE';
-      for(const t of stream.getTracks())t.stop();video.srcObject=null;stream=null;
+      stream=await permission;imageDataUrl=await frameJpeg(stream);
+      $('j-screen-state').textContent='SCREEN ANALYZING · IMAGE CAPTURED ONCE';
+      for(const t of stream.getTracks())t.stop();stream=null;
       const result=await api('/api/vision/screen',{question,image_data_url:imageDataUrl});imageDataUrl='';
       entry(result.answer,'assistant');for(const item of result.observations||[])entry('• '+item,'assistant');
       if(result.caution)entry(result.caution,'assistant');status('IDLE');
     }catch(e){imageDataUrl='';entry(e.name==='NotAllowedError'?'Screen sharing was cancelled or denied. No screenshot was analyzed.':(e.message||'Screen analysis is unavailable.'),'assistant');status('IDLE')}
-    finally{if(stream)for(const t of stream.getTracks())t.stop();if(video)video.srcObject=null;
+    finally{if(stream)for(const t of stream.getTracks())t.stop();
       $('j-screen-state').textContent='SCREEN OFF';$('j-send').disabled=false;$('j-screen').disabled=false;busy=false;resumeWake()}
+  }
+  async function captureCamera(question){
+    if(busy)return;const getCamera=navigator.mediaDevices?.getUserMedia;
+    if(!getCamera){$('j-camera-state').textContent='CAMERA UNAVAILABLE';entry('This browser cannot access a camera. H.O.L.O simulation remains available.','assistant');return}
+    let request;try{request=getCamera.call(navigator.mediaDevices,{video:{facingMode:'environment'},audio:false})}
+    catch(e){$('j-camera-state').textContent='CAMERA ERROR';entry('Camera could not be started. Allow camera access after pressing Look at this once.','assistant');return}
+    busy=true;$('j-send').disabled=true;$('j-eyes').disabled=true;$('j-camera-state').textContent='CAMERA ACTIVE';
+    status('CAMERA ACTIVE · CAPTURING ONE FRAME');await stopSpeech();entry(question,'user');
+    let stream=null,imageDataUrl='';
+    try{stream=await request;imageDataUrl=await frameJpeg(stream);
+      for(const t of stream.getTracks())t.stop();stream=null;$('j-camera-state').textContent='CAMERA READY';
+      const result=await api('/api/vision/camera',{question,image_data_url:imageDataUrl});imageDataUrl='';
+      entry(result.answer,'assistant');for(const item of result.observations||[])entry('• '+item,'assistant');
+      if(result.caution)entry(result.caution,'assistant');status('IDLE');
+    }catch(e){imageDataUrl='';const denied=e.name==='NotAllowedError';
+      $('j-camera-state').textContent=e.name==='NotFoundError'?'CAMERA UNAVAILABLE':'CAMERA ERROR';
+      entry(denied?'Camera access was denied. No frame was analyzed.':(e.message||'Camera analysis is unavailable.'),'assistant');status('IDLE')}
+    finally{if(stream)for(const t of stream.getTracks())t.stop();
+      $('j-send').disabled=false;$('j-eyes').disabled=false;busy=false;resumeWake()}
   }
   async function select(id){await api('/api/jarvis/context',{session_id:sid,document_id:id});selected=id;
     const doc=await api('/api/memory/document?id='+encodeURIComponent(id));$('j-selection').textContent='Selected: '+doc.title;return doc}
@@ -155,7 +182,8 @@ async function boot(){
     try{current.start()}catch(_){speechRecognizer=null}}
   $('j-speak').onchange=()=>{if(!$('j-speak').checked)speakMute()};
   function speakMute(){stopSpeech(false).catch(showError)}
-  async function ask(message){if(busy||!message.trim())return;if(isScreenRequest(message)){captureScreen(message).catch(showError);return}
+  async function ask(message){if(busy||!message.trim())return;if(isCameraRequest(message)){captureCamera(message).catch(showError);return}
+    if(isScreenRequest(message)){captureScreen(message).catch(showError);return}
     busy=true;await stopSpeech();$('j-send').disabled=true;status('RETRIEVING');entry(message,'user');
     const poll=setInterval(()=>api('/api/jarvis/state?session_id='+encodeURIComponent(sid)).then(s=>{if(busy)status(s.state)}).catch(()=>{}),250);
     try{const result=await api('/api/jarvis/chat',{session_id:sid,message,selected_id:selected,spoken:$('j-speak').checked});
@@ -170,6 +198,7 @@ async function boot(){
     }finally{clearInterval(poll);busy=false;$('j-send').disabled=false}}
   $('j-form').onsubmit=e=>{e.preventDefault();const q=$('j-input').value;$('j-input').value='';ask(q).catch(showError)};
   $('j-screen').onclick=()=>captureScreen($('j-input').value.trim()||'What am I looking at?').catch(showError);
+  $('j-eyes').onclick=()=>captureCamera($('j-input').value.trim()||'Look at this.').catch(showError);
   $('j-summary').onclick=()=>ask('Summarize this').catch(showError);
   $('j-index').onclick=async()=>{try{status('INDEXING');await api('/api/memory/reindex',{});await refresh();status('IDLE')}catch(e){showError(e)}};
   $('j-embed').onclick=async()=>{try{status('EMBEDDING · SENDING NOTE CHUNKS TO OPENAI');await api('/api/memory/embed',{});await refresh();status('IDLE')}catch(e){showError(e)}};

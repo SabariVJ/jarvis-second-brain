@@ -126,6 +126,12 @@ text is treated as untrusted data; Jarvis cannot click controls. Browser tests u
 a generated fixture image and do not open the real screen chooser.
 The image adapter follows the [Responses API image input guide](https://developers.openai.com/api/docs/guides/images-vision).
 
+The optional “Look at this once” control requests camera access only after a
+click or an explicit camera question. It captures one frame, stops camera tracks,
+and discards the image after analysis. A camera is not required to launch Jarvis
+or use H.O.L.O simulation; live image analysis uses the same API key as screen
+understanding.
+
 Gmail, Calendar and Telegram are **not implemented** in this foundation. There is
 no connection setup to perform yet; do not add tokens speculatively. Implement
 their OAuth/allowlist/approval layers in phases 16, 17 and 20 first. No external

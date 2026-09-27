@@ -54,6 +54,10 @@ the image sent for analysis. The screenshot is bounded, processed in memory and
 never added to notes, chat history or logs. Screen text is untrusted image data;
 vision returns a bounded structured answer and observations, with no tools or
 ability to click controls. Live analysis needs the user's OpenAI configuration.
+The optional Jarvis Eyes button uses the same one-frame vision adapter through a
+separate explicit camera permission request. Its visible lifecycle is CAMERA
+READY, ACTIVE, UNAVAILABLE or ERROR; it stops the camera tracks after one frame.
+H.O.L.O camera startup and simulation remain independent.
 
 The tool registry only exposes validated read operations. Risk >0 is denied
 unconditionally, with no `approved=true` bypass. A proper single-use approval

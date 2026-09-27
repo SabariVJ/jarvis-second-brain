@@ -30,6 +30,14 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
         const stream=c.captureStream(1);for(const track of stream.getTracks()){const stop=track.stop.bind(track);track.stop=()=>{window.screenTrackStopCount++;stop()}}
         return stream;
       };
+      window.cameraCaptureCount=0;window.cameraTrackStopCount=0;window.denyCamera=false;
+      navigator.mediaDevices.getUserMedia=async()=>{
+        window.cameraCaptureCount++;if(window.denyCamera)throw new DOMException('Permission denied','NotAllowedError');
+        const c=document.createElement('canvas');c.width=480;c.height=320;const x=c.getContext('2d');
+        x.fillStyle='#267';x.fillRect(0,0,c.width,c.height);x.fillStyle='#fff';x.font='24px sans-serif';x.fillText('CAMERA FRAME FIXTURE',15,60);
+        const stream=c.captureStream(1);for(const track of stream.getTracks()){const stop=track.stop.bind(track);track.stop=()=>{window.cameraTrackStopCount++;stop()}}
+        return stream;
+      };
     });
     await page.goto(base+'/?probe=1');
     await page.waitForFunction(()=>document.title.startsWith('PROBE'),null,{timeout:60000});
@@ -123,13 +131,25 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.waitForFunction(()=>document.querySelector('#j-screen-state').textContent.includes('SCREEN SHARING ACTIVE'));
     assert.equal(visionPosts,0);assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
     await page.evaluate(()=>window.releaseScreenCapture());
-    await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('The screen shows a local warning.')&&document.querySelector('#j-screen-state').textContent==='SCREEN OFF');
+    try{await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('The screen shows a local warning.')&&document.querySelector('#j-screen-state').textContent==='SCREEN OFF',null,{timeout:6000})}
+    catch(e){console.log('SCREEN DEBUG',await page.locator('#j-log').innerText(),await page.locator('#j-screen-state').innerText());throw e}
     assert.equal(visionPosts,1);assert.match(visionPayload.image_data_url,/^data:image\/jpeg;base64,/);assert.equal(visionPayload.question,'What am I looking at?');
     assert.equal(await page.evaluate(()=>window.screenTrackStopCount),1);
     assert.equal(await page.evaluate(()=>fetch('/api/memory/status').then(r=>r.json()).then(x=>x.documents)),docsBefore);
     await page.evaluate(()=>{window.holdScreenPromise=false;window.denyScreenCapture=true});
     await page.locator('#j-screen').click();await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('Screen sharing was cancelled or denied'));
     assert.equal(visionPosts,1);
+    assert.equal(await page.evaluate(()=>window.cameraCaptureCount),0);
+    let cameraPosts=0,cameraPayload=null;
+    await page.route('**/api/vision/camera',async route=>{cameraPosts++;cameraPayload=route.request().postDataJSON();
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({answer:'A cup is visible.',observations:['One cup'],caution:''})})});
+    await page.locator('#j-input').fill('What am I holding?');await page.locator('#j-send').click();
+    await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('A cup is visible.')&&document.querySelector('#j-camera-state').textContent==='CAMERA READY');
+    assert.equal(cameraPosts,1);assert.match(cameraPayload.image_data_url,/^data:image\/jpeg;base64,/);
+    assert.equal(await page.evaluate(()=>window.cameraCaptureCount),1);assert.equal(await page.evaluate(()=>window.cameraTrackStopCount),1);
+    await page.evaluate(()=>window.denyCamera=true);await page.locator('#j-eyes').click();
+    await page.waitForFunction(()=>document.querySelector('#j-camera-state').textContent==='CAMERA ERROR'&&document.querySelector('#j-log').textContent.includes('Camera access was denied'));
+    assert.equal(cameraPosts,1);
     let speechAnswer='This sentence contains the word stop as echo bait.';
     await page.route('**/api/jarvis/chat',async route=>{
       const body=route.request().postDataJSON();
@@ -166,9 +186,11 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.locator('#j-wake').uncheck();
     const releasedCount=await page.evaluate(()=>window.testRecognitions.length);
     await page.waitForTimeout(500);assert.equal(await page.evaluate(()=>window.testRecognitions.length),releasedCount,'Wake off releases recognition');
-    const noVoice=await browser.newPage();await noVoice.addInitScript(()=>{delete window.SpeechRecognition;delete window.webkitSpeechRecognition});
+    const noVoice=await browser.newPage();await noVoice.addInitScript(()=>{delete window.SpeechRecognition;delete window.webkitSpeechRecognition;
+      if(navigator.mediaDevices)navigator.mediaDevices.getUserMedia=undefined});
     await noVoice.goto(base+'/');await noVoice.waitForFunction(()=>!!window.jarvisUI);
-    assert.equal(await noVoice.locator('#j-mic').isDisabled(),true);assert.equal(await noVoice.locator('#j-wake').isDisabled(),true);await noVoice.close();
+    assert.equal(await noVoice.locator('#j-mic').isDisabled(),true);assert.equal(await noVoice.locator('#j-wake').isDisabled(),true);
+    await noVoice.locator('#j-eyes').click();await noVoice.waitForFunction(()=>document.querySelector('#j-camera-state').textContent==='CAMERA UNAVAILABLE');await noVoice.close();
     const denied=await browser.newPage();await denied.addInitScript(()=>{window.SpeechRecognition=class{start(){this.onerror?.({error:'not-allowed'})}stop(){this.onend?.()}}});
     await denied.goto(base+'/');await denied.waitForFunction(()=>!!window.jarvisUI);await denied.locator('#j-wake').check();
     await denied.waitForFunction(()=>!document.querySelector('#j-wake').checked&&document.querySelector('#j-log').textContent.includes('not-allowed'));await denied.close();
@@ -176,6 +198,6 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/mobile-preview.png'});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     assert.deepEqual(errors,[]);
-    console.log('PASS: probe+props, simulation, no-camera, research, voice interruption/echo/mute, wake safety, explicit one-shot screen capture/discard, denied/unavailable permissions, layout; zero page errors.');
+    console.log('PASS: probe+props, simulation, no-camera, research, voice interruption/echo/mute, wake safety, one-shot screen/camera capture-discard, permission failures, layout; zero page errors.');
   }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
