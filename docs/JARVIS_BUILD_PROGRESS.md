@@ -1,4 +1,4 @@
-# JARVIS build progress — Phase 17 checkpoint, 2026-09-27
+# JARVIS build progress — Phase 18 checkpoint, 2026-09-27
 
 Branch: `jarvis-second-brain`.
 User-specified run start SHA: `b50ed173704f95c994f540c9ebab8649082517bf`.
@@ -29,8 +29,8 @@ physical microphone acceptance remain pending. This is not complete video parity
 | 14 Jarvis Eyes | Complete, hardware/key acceptance pending | ai/vision.py, runtime.py, ui/jarvis.js | Camera states, fake frame, track disposal, unavailable/denied paths; no-camera simulation green | e903720 | Physical camera acceptance |
 | 15 Focus Lock | Complete, physical Windows monitoring acceptance pending | focus.py, runtime.py, ui/jarvis.js, H.O.L.O Focus card | 37 Python tests, mocked Win32 foreground read, title-free persisted history, controls/voice commands, browser acceptance | 5c52c3c | Verify live foreground classification on Windows |
 | 16 Gmail | Complete code/mocks/UI, OAuth user setup required | integrations/google_oauth.py, gmail.py, runtime.py, ui/jarvis.js | 44 Python tests; mocked OAuth/API, disconnected state, inbox/unread/search/thread/local summary/draft/reply/send confirmation; browser acceptance and probe 26/26 | dbde059 | User must configure local Google OAuth before live Gmail use |
-| 17 Calendar | Complete code/mocks/UI, OAuth user setup required | integrations/calendar.py, runtime.py, ui/jarvis.js | 51 Python tests; mocked today/tomorrow/range/search/free-busy and create/reschedule/cancel confirmation; browser acceptance and probe 26/26 | pending | User must configure Calendar OAuth scopes before live use |
-| 18 Morning briefing | Not started | MASTER_SPEC.md | None claimed | — | Continue with combined Calendar, Gmail, brain and Focus inputs |
+| 17 Calendar | Complete code/mocks/UI, OAuth user setup required | integrations/calendar.py, runtime.py, ui/jarvis.js | 51 Python tests; mocked today/tomorrow/range/search/free-busy and create/reschedule/cancel confirmation; browser acceptance and probe 26/26 | eda74d3 | User must configure Calendar OAuth scopes before live use |
+| 18 Morning briefing | Complete code/mocks/UI, OAuth user setup required for live data | briefing.py, runtime.py, ui/jarvis.js, H.O.L.O briefing card | 55 Python tests; disconnected/failure fallbacks, source-backed brain inputs, mock integrations, manual-only card/voice; browser acceptance and probe 26/26 | pending | Optional Google OAuth setup for live Gmail and Calendar inputs |
 | 19–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations and memory workflows |
 
 ## Full checkpoint SHAs
@@ -49,10 +49,11 @@ physical microphone acceptance remain pending. This is not complete video parity
 - Phase 14 Jarvis Eyes: `e9037200b3d13e2b0e6f8be95a71fbc363e932ef`
 - Phase 15 Focus Lock: `5c52c3c2b7881e91c410cd508e009b1f60b4456f`
 - Phase 16 Gmail: `dbde0592551981b85acb495727f6d1bc1cb3e1bb`
+- Phase 17 Calendar: `eda74d3e5ec80552adfb9ca344e5b6f171cf985c`
 
 ## Final validation
 
-- Python 3.11 project environment: **51/51 tests passed, zero skips**.
+- Python 3.11 project environment: **55/55 tests passed, zero skips**.
 - Actual OpenAI SDK 2.54.0 serialization/parsing tested over mocked HTTP.
 - Actual pypdf 6.19.0 extraction tested with generated PDF text.
 - `pip check` green; compilation and diff whitespace checks green.
@@ -68,9 +69,11 @@ physical microphone acceptance remain pending. This is not complete video parity
   camera states, Focus Lock controls and natural-language start, unchanged memory
   document count; Gmail mocked read/search/thread/summary/draft/reply/send flows;
   Calendar mocked today/tomorrow/search/availability and confirmed create,
-  reschedule and cancel. **Zero page errors.**
+  reschedule and cancel; briefing integration data, safe text rendering, manual
+  button and natural-language invocation, and no automatic startup request.
+  **Zero page errors.**
 - Windows launch.cmd successfully started server.py at http://localhost:4900 for Gmail
-  and http://localhost:4901 for Calendar.
+  http://localhost:4901 for Calendar and http://localhost:4902 for the briefing.
 - Sample index: eight documents/chunks/entities/edges; no extraction errors.
 - No key/live API call, microphone recording, webcam test or external message.
 - vendor/, props/ and sample-notes/ unchanged. Private runtime data remain ignored.
@@ -83,10 +86,9 @@ physical microphone acceptance remain pending. This is not complete video parity
    citations, semantic paraphrase after explicit vector indexing, and actual
    microphone transcript search independent of the camera. Record results without
    secrets or private source bodies. Mocks do not prove live account access.
-3. **Next coding task: Phase 18, Morning briefing.** Combine on-demand Calendar,
-   important Gmail, second-brain priorities, tasks, deadlines, recent projects and
-   Focus target into a concise spoken response and detailed visual card. Never
-   speak automatically at startup. Keep scheduling as a future opt-in hook.
+3. **Next coding task: Phase 19, Long-term Memory.** Add intentional memory
+   workflows over the existing source-backed schema: remember, retrieve, explain
+   provenance, and forget. Never save every conversation automatically.
 4. Gmail and Calendar remain NOT CONNECTED until OAuth is configured locally as
    described in SETUP.md; never request secrets in chat.
 

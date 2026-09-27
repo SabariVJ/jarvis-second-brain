@@ -26,6 +26,10 @@
 .calendar-item{display:grid;grid-template-columns:1fr auto;gap:4px;border:1px solid #49405f;border-radius:8px;padding:8px;background:#100d16}
 .calendar-item strong{grid-column:1/-1}.calendar-item small{color:#b6a9c9;overflow-wrap:anywhere}.calendar-item[data-selected=true]{border-color:#c8a8ff}
 #focus-status{font:10px ui-monospace,monospace;color:#e4c47f}
+#briefing-card{border:1px solid #806849;border-radius:12px;background:#19140e;padding:10px;display:flex;flex-direction:column;gap:7px}
+#briefing-card h3{font:11px ui-monospace,monospace;letter-spacing:.1em;color:#ffd49a}
+#briefing-detail{max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:8px;overflow-wrap:anywhere}
+#briefing-detail ul{margin:4px 0;padding-left:20px}#briefing-detail li{margin:3px 0;color:#d5c8b6}
 .focus-fields{display:grid;grid-template-columns:90px 1fr;gap:6px}
 .focus-fields input{padding:7px!important}
 .j-entry{padding:12px 0;border-bottom:1px solid #284038}

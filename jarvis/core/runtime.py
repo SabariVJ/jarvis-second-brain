@@ -14,6 +14,7 @@ from jarvis.ai.vision import Vision
 from jarvis.focus import FocusLock
 from jarvis.integrations.gmail import GmailAdapter
 from jarvis.integrations.calendar import CalendarAdapter
+from jarvis.briefing import MorningBriefing
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -31,6 +32,7 @@ class Runtime:
         self.focus = FocusLock(Path(os.environ.get('JARVIS_DATA_DIR', str(Path(root)/'data'))) / 'focus.json')
         self.gmail = GmailAdapter()
         self.calendar = CalendarAdapter()
+        self.briefing = MorningBriefing(self.database,self.gmail,self.calendar,self.focus)
         self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research)
 
     def health(self):
@@ -45,6 +47,7 @@ class Runtime:
             return self.focus.status()
         if method == 'GET' and path == '/api/integrations/gmail': return self.gmail.status()
         if method == 'GET' and path == '/api/integrations/calendar': return self.calendar.status()
+        if method == 'POST' and path == '/api/briefing/morning': return self.briefing.run()
         if method == 'POST' and path == '/api/gmail/list':
             return self.gmail.list_messages(data.get('mode','inbox'),data.get('query',''),data.get('limit',20))
         if method == 'POST' and path == '/api/gmail/thread': return self.gmail.thread(data.get('thread_id'))

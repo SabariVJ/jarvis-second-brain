@@ -30,6 +30,11 @@ async function boot(){
         <label class="sub">Distracting app or site titles<input id="focus-distracting" value="instagram, tiktok, youtube, reddit"></label>
         <div class="j-row"><button id="focus-start">Start</button><button id="focus-pause">Pause</button><button id="focus-resume">Resume</button><button id="focus-stop">Stop</button></div>
       </section>
+      <section id="briefing-card" aria-label="Morning briefing">
+        <h3>JARVIS MORNING BRIEFING <span id="briefing-status" class="sub">NOT RUN</span></h3>
+        <button id="briefing-run" type="button">Give me my morning briefing</button>
+        <div id="briefing-detail" class="sub" aria-live="polite">Run when you are ready. Jarvis will not speak automatically at startup.</div>
+      </section>
       <section id="calendar-card" aria-label="Google Calendar">
         <h3>GOOGLE CALENDAR <span id="calendar-state" class="sub">CHECKING</span><button id="calendar-refresh" aria-label="Refresh Calendar connection">Refresh</button></h3>
         <div class="j-row"><button id="calendar-today" disabled>Today</button><button id="calendar-tomorrow" disabled>Tomorrow</button><button id="calendar-availability" disabled>Check availability</button></div>
@@ -211,8 +216,27 @@ async function boot(){
     try{current.start()}catch(_){speechRecognizer=null}}
   $('j-speak').onchange=()=>{if(!$('j-speak').checked)speakMute()};
   function speakMute(){stopSpeech(false).catch(showError)}
+  function briefingSection(title,items,formatter){const block=document.createElement('section'),heading=document.createElement('strong'),list=document.createElement('ul');
+    heading.textContent=title;block.append(heading);if(!items?.length){const empty=document.createElement('div');empty.textContent='None recorded.';block.append(empty);return block}
+    for(const item of items){const row=document.createElement('li');row.textContent=formatter(item);list.append(row)}block.append(list);return block}
+  async function runBriefing(){
+    $('briefing-run').disabled=true;$('briefing-status').textContent='PREPARING';$('briefing-detail').replaceChildren();
+    try{const result=await api('/api/briefing/morning',{});const detail=$('briefing-detail');detail.replaceChildren();
+      detail.append(briefingSection('Calendar today · '+result.calendar.status,result.calendar.items,e=>`${e.start||'All day'} · ${e.summary}`));
+      detail.append(briefingSection('Important email · '+result.email.status,result.email.items,e=>`${e.from||'Unknown sender'} — ${e.subject||'(no subject)'}`));
+      detail.append(briefingSection('Saved priorities',result.brain.priorities,e=>`${e.content} · ${e.source}`));
+      detail.append(briefingSection('Active tasks',result.brain.active_tasks,e=>`${e.title} (${e.status}) · ${e.source}`));
+      detail.append(briefingSection('Deadlines and reminders',result.brain.deadlines,e=>`${e.content} · ${e.source}`));
+      detail.append(briefingSection('Recent projects',result.brain.recent_projects,e=>`${e.name} · ${e.source}`));
+      detail.append(briefingSection('Focus target',result.focus.state==='ACTIVE'||result.focus.state==='PAUSED'?[result.focus]:[],e=>`${e.goal} · ${Math.ceil((e.remaining_seconds||0)/60)} minutes remaining`));
+      const schedule=document.createElement('small');schedule.textContent='Automatic scheduling is off. This briefing runs only when requested.';detail.append(schedule);
+      $('briefing-status').textContent='READY · '+new Date(result.generated_at).toLocaleTimeString();entry(result.spoken,'assistant');speak(result.spoken)
+    }catch(e){$('briefing-status').textContent='UNAVAILABLE';entry(e.message||'Morning briefing is unavailable.','assistant')}
+    finally{$('briefing-run').disabled=false}}
+  $('briefing-run').onclick=()=>runBriefing();
   async function ask(message){if(busy||!message.trim())return;if(isCameraRequest(message)){captureCamera(message).catch(showError);return}
     if(isScreenRequest(message)){captureScreen(message).catch(showError);return}
+    if(/\b(morning briefing|brief me|give me (?:my )?morning briefing)\b/i.test(message)){entry(message,'user');runBriefing();return}
     if(/\bpause focus\b/i.test(message)){await focusAction('/api/focus/pause',{});entry('Focus session paused.');return}
     if(/\bresume focus\b/i.test(message)){await focusAction('/api/focus/resume',{});entry('Focus session resumed.');return}
     if(/\bstop focus\b/i.test(message)){await focusAction('/api/focus/stop',{});entry('Focus session stopped.');return}

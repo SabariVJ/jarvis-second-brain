@@ -183,4 +183,11 @@ change as complete only after Google confirms it. Events remain in Google and ar
 not copied into the local second brain. The three Calendar scopes above are the
 least-privilege scopes used for these read, availability and event operations.
 
+The Morning Briefing card runs only when pressed or requested with “give me my
+morning briefing.” It includes connected Calendar and Gmail information, local
+priorities, active tasks, deadline/reminder notes, recent projects and the Focus
+target. Gmail and Calendar may remain disconnected; local items still appear.
+Read-aloud remains governed by the existing opt-in voice checkbox. There is no
+startup speech or background schedule.
+
 Telegram and other outbound messaging remain unimplemented.

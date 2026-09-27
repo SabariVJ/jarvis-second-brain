@@ -141,3 +141,12 @@ class HTTPTests(unittest.TestCase):
         body={'summary':'Review','start':'2026-09-27T10:00:00Z','end':'2026-09-27T11:00:00Z','confirmation':'CREATE Review'}
         self.assertTrue(json.loads(self.request('/api/calendar/create',body)[1])['confirmed'])
         server.RUNTIME.calendar.create.assert_called_once_with('Review',body['start'],body['end'],'CREATE Review','')
+
+    def test_morning_briefing_is_an_explicit_post(self):
+        from unittest.mock import Mock
+        server.RUNTIME.briefing=Mock()
+        server.RUNTIME.briefing.run.return_value={'spoken':'Good morning.','scheduling':{'auto_at_startup':False}}
+        self.assertEqual(self.request('/api/briefing/morning')[0],404)
+        result=json.loads(self.request('/api/briefing/morning',{})[1])
+        self.assertFalse(result['scheduling']['auto_at_startup'])
+        server.RUNTIME.briefing.run.assert_called_once_with()

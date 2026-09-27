@@ -10,6 +10,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     let gmailAuth={state:'NOT CONNECTED',connected:false},gmailCalls=[];
     let calendarAuth={state:'NOT CONNECTED',connected:false},calendarCalls=[];
+    let briefingCalls=0;
     let focusState={state:'IDLE',monitor_supported:true,warning:null},focusCalls=[];
     const focusRoute=async route=>{
       const url=new URL(route.request().url()),action=url.pathname.split('/').pop();
@@ -23,6 +24,12 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.route('**/api/focus',focusRoute);await page.route('**/api/focus/**',focusRoute);
     await page.route('**/api/integrations/gmail',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(gmailAuth)}));
     await page.route('**/api/integrations/calendar',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(calendarAuth)}));
+    await page.route('**/api/briefing/morning',route=>{briefingCalls++;return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+      generated_at:'2026-09-27T08:00:00Z',spoken:'Good morning. You have one calendar item today. There are no active tasks.',
+      calendar:{status:'READY',items:[{summary:'Planning',start:'09:00',end:'09:30'}]},
+      email:{status:'READY',items:[{from:'Build Bot',subject:'<img src=x onerror=alert(1)>',snippet:'untrusted'}]},
+      brain:{priorities:[{content:'Finish Jarvis',source:'notes.md'}],active_tasks:[],deadlines:[],reminders:[],recent_projects:[{name:'Jarvis',source:'notes.md'}]},
+      focus:{state:'IDLE'},scheduling:{supported:false,auto_at_startup:false}})})});
     await page.addInitScript(()=>{
       // Test voice transcript transport without a microphone or an online STT service.
       window.SpeechRecognition=class {
@@ -67,6 +74,13 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
     assert.equal(await page.locator('#gmail-state').innerText(),'NOT CONNECTED');assert.equal(await page.locator('#gmail-inbox').isDisabled(),true);
     assert.equal(await page.locator('#calendar-state').innerText(),'NOT CONNECTED');assert.equal(await page.locator('#calendar-create').isDisabled(),true);
+    assert.equal(await page.locator('#briefing-status').innerText(),'NOT RUN');assert.equal(briefingCalls,0,'Briefing must not run automatically at startup');
+    await page.locator('#briefing-run').click();await page.waitForFunction(()=>document.querySelector('#briefing-status').textContent.startsWith('READY'));
+    assert.equal(briefingCalls,1);assert.match(await page.locator('#briefing-detail').innerText(),/Planning/);
+    assert.equal(await page.locator('#briefing-detail img').count(),0,'Mail content must render as text');
+    await page.locator('#j-input').fill('Jarvis, give me my morning briefing.');await page.locator('#j-send').click();
+    await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('There are no active tasks.'));
+    assert.equal(briefingCalls,2,'Natural-language briefing must be manually invoked');
     await page.locator('#j-input').fill('Find my galaxy notes');await page.locator('#j-send').click();
     await page.waitForFunction(()=>document.querySelectorAll('.j-sources button').length>0);
     await page.waitForFunction(()=>!document.querySelector('#j-send').disabled);

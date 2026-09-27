@@ -145,6 +145,7 @@ Original APIs are preserved; GET /api/state was added. New endpoints:
 | POST | /api/gmail/{list,thread,summarize,draft,reply-draft,send} | On-demand Gmail operations; send requires a separate exact confirmation |
 | GET | /api/integrations/calendar | Local OAuth configuration status, no token values |
 | POST | /api/calendar/{today,tomorrow,events,search,availability,create,reschedule,cancel} | On-demand Calendar queries and writes with explicit confirmation |
+| POST | /api/briefing/morning | Explicitly requested briefing assembled from connected integrations and local brain state |
 | GET | /api/memory/status | Counts and extraction errors |
 | POST | /api/memory/reindex | Scan configured root only |
 | POST | /api/memory/embed | Build explicitly enabled cloud vectors |
@@ -207,3 +208,16 @@ are treated as complete only when Google's response contains the expected event
 ID; cancellation is reported only after the delete request succeeds. Calendar
 items remain in Google and are not persisted into the second brain. See
 `SETUP.md` for the narrow OAuth scopes and local configuration.
+
+## Phase 18: Morning briefing
+
+`POST /api/briefing/morning` combines today's Calendar events, important/starred
+Gmail metadata, source-backed priorities, active tasks, deadline/reminder memories,
+recent projects and the current Focus target. Disconnected providers are labeled
+and do not block local data. Email subjects and event titles are rendered as text;
+email snippets are not spoken or passed to an AI. A concise spoken summary is
+returned with the detailed structured card data. UI startup never calls this route
+or starts speech; a user must press the briefing button or ask for it, and read-aloud
+still follows the existing opt-in speech setting. Scheduling metadata explicitly
+reports that automatic scheduling is unsupported and off, leaving a future hook
+without starting a background job.
