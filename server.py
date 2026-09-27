@@ -14,11 +14,17 @@ Endpoints:
                          sir"). Nothing reads it yet by design — prototype stays
                          standalone until proven.
 """
-import json, os, time
+import json, os, time, threading
+from pathlib import Path
+from urllib.parse import urlsplit, parse_qs, unquote
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from jarvis.core.runtime import Runtime
+from jarvis.security import local_request
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("HOLO_PORT", "4890"))
+RUNTIME = None
+STATE_LOCK = threading.Lock()
 
 # the page, cached at boot: long-lived processes on macOS can silently lose file
 # access (TCC) hours in — serving the boot-time copy beats a 500 "missing" page
@@ -103,6 +109,21 @@ class H(BaseHTTPRequestHandler):
             ".glb": "model/gltf-binary"}
 
     def do_GET(self):
+        if not local_request(self.headers, self.server.server_port):
+            return self._send(403, {"error": "Local same-origin access only"})
+        parsed = urlsplit(self.path)
+        if RUNTIME:
+            try:
+                result = RUNTIME.dispatch('GET', parsed.path, {}, parse_qs(parsed.query))
+                if result is not None: return self._send(200, result)
+            except ValueError as e:
+                return self._send(400, {"error": str(e)})
+        if parsed.path == '/api/state':
+            with STATE_LOCK:
+                try:
+                    with open(os.path.join(ROOT, 'state', 'holo-state.json')) as f:
+                        return self._send(200, json.load(f))
+                except (OSError, ValueError): return self._send(200, {})
         p = self.path.split("?")[0]
         if p in ("/", "/holo.html"):
             try:
@@ -121,12 +142,12 @@ class H(BaseHTTPRequestHandler):
             except OSError:
                 names = []
             return self._send(200, names)
-        if p.startswith(("/vendor/", "/props/")):
+        if p.startswith(("/vendor/", "/props/", "/ui/")):
             # self-hosted tracking libs: no CDN in the path, so ad-block extensions
             # and offline machines can't kill the hand tracking
-            safe = os.path.normpath(p.lstrip("/"))
-            if safe.startswith(("vendor", "props")) and ".." not in safe:
-                full = os.path.join(ROOT, safe)
+            base = Path(ROOT, p.split('/')[1]).resolve()
+            full = Path(ROOT, unquote(p).lstrip('/')).resolve()
+            if full.is_relative_to(base):
                 if os.path.isfile(full):
                     ext = os.path.splitext(full)[1]
                     try:
@@ -142,13 +163,26 @@ class H(BaseHTTPRequestHandler):
         return self._send(404, {"error": "not found"})
 
     def do_POST(self):
+        if not local_request(self.headers, self.server.server_port, write=True):
+            return self._send(403, {"error": "Local JSON requests only"})
+        try:
+            n = int(self.headers.get('Content-Length', '0'))
+            if n <= 0 or n > 65536: return self._send(413, {'error': 'Invalid request size'})
+            data = json.loads(self.rfile.read(n))
+            if not isinstance(data, dict): raise ValueError('Object required')
+        except (ValueError, UnicodeError):
+            return self._send(400, {'error': 'Invalid JSON object'})
+        parsed = urlsplit(self.path)
+        if RUNTIME:
+            try:
+                result = RUNTIME.dispatch('POST', parsed.path, data, parse_qs(parsed.query))
+                if result is not None: return self._send(200, result)
+            except (ValueError, KeyError) as e:
+                return self._send(400, {'error': str(e)})
+            except Exception:
+                return self._send(500, {'error': 'Operation failed; local data preserved'})
         p = self.path.split("?")[0]
         if p == "/api/diag":              # the page phones home its own crash report
-            try:
-                n = int(self.headers.get("Content-Length") or 0)
-                data = json.loads(self.rfile.read(n) or b"{}")
-            except Exception:
-                data = {}
             data["ts"] = time.time()
             try:
                 os.makedirs(os.path.join(ROOT, "state"), exist_ok=True)
@@ -159,22 +193,19 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True})
         if p != "/api/state":
             return self._send(404, {"error": "not found"})
-        try:
-            n = int(self.headers.get("Content-Length") or 0)
-            data = json.loads(self.rfile.read(n) or b"{}")
-        except Exception:
-            data = {}
         data["ts"] = time.time()
         try:
-            os.makedirs(os.path.join(ROOT, "state"), exist_ok=True)
-            tmp = os.path.join(ROOT, "state", ".holo-state.tmp")
-            with open(tmp, "w") as f:
-                json.dump(data, f)
-            os.replace(tmp, os.path.join(ROOT, "state", "holo-state.json"))
+            with STATE_LOCK:
+                os.makedirs(os.path.join(ROOT, "state"), exist_ok=True)
+                tmp = os.path.join(ROOT, "state", ".holo-state.tmp")
+                with open(tmp, "w") as f:
+                    json.dump(data, f)
+                os.replace(tmp, os.path.join(ROOT, "state", "holo-state.json"))
         except OSError:
-            pass
+            return self._send(500, {'error': 'State could not be saved'})
         return self._send(200, {"ok": True})
 
 if __name__ == "__main__":
+    RUNTIME = Runtime(ROOT, notes_dir)
     print(f"HOLO deck on http://localhost:{PORT}  ·  notes: {notes_dir()}")
     ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()

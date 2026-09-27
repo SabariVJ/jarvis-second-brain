@@ -13,3 +13,5 @@ Branch: `jarvis-second-brain`.
 Next task: implement runtime/state machine, with local HTTP security and tests.
 Commit IDs for each phase are recorded at subsequent checkpoints (a commit cannot
 contain its own hash). Resolve latest checkpoint with `git log -1`.
+
+Phases 1–2 backend: modular runtime, per-tab expiring context, explicit state machine, bounded same-origin JSON APIs and GET /api/state implemented. Three core tests pass; frontend state reflection remains for Phase 7. Next: SQLite schema and ingestion.
