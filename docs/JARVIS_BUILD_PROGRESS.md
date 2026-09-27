@@ -25,7 +25,7 @@ physical microphone acceptance remain pending. This is not complete video parity
 | 11 Voice | Browser foundation complete, hardware pending | ui/jarvis.js | Interim/final recognition, cancel, lifecycle browser acceptance; probe 26/26 | 780f1cc | Real microphone/VAD acceptance |
 | 12 Wake/interruption | Complete, hardware acceptance pending | ui/jarvis.js, runtime.py | Mock stop/cancel/enough, echo filter, TTS wake suppression/resume, mute, denied/unavailable speech; probe 26/26 | 1cdad6a | Real microphone/acoustic acceptance |
 | 13 Screen vision | Complete, live key acceptance pending | ai/vision.py, runtime.py, server.py, ui/jarvis.js | 32 Python tests, prompt boundary/image validation, explicit picker/capture/discard, mocked endpoint; probe 26/26 | 77cfd8e | Live vision account acceptance |
-| 14 Jarvis Eyes | Complete, hardware/key acceptance pending | ai/vision.py, runtime.py, ui/jarvis.js | Camera states, fake frame, track disposal, unavailable/denied paths; no-camera simulation green | This checkpoint | Physical camera acceptance |
+| 14 Jarvis Eyes | Complete, hardware/key acceptance pending | ai/vision.py, runtime.py, ui/jarvis.js | Camera states, fake frame, track disposal, unavailable/denied paths; no-camera simulation green | e903720 | Physical camera acceptance |
 | 15–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
 
 ## Full checkpoint SHAs
@@ -41,7 +41,7 @@ physical microphone acceptance remain pending. This is not complete video parity
 - Opt-in wake: `ef50b56cabca4e24664c9dc1641566dd62a792da`
 - Phase 12 spoken interruption: `1cdad6ac3bd193ddbe322b8dc2d75d9eb6d58ede`
 - Phase 13 screen vision: `77cfd8e618b29a22bdc2deae127d47c022748ad1`
-- Phase 14 Jarvis Eyes: validated; commit below
+- Phase 14 Jarvis Eyes: `e9037200b3d13e2b0e6f8be95a71fbc363e932ef`
 
 ## Final validation
 
