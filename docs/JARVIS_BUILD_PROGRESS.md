@@ -1,4 +1,4 @@
-# JARVIS build progress — foundation handoff, 2026-09-27
+# JARVIS build progress — Phase 12 checkpoint, 2026-09-27
 
 Branch: `jarvis-second-brain`.
 Start SHA: `278fe99f44907a4af3db2e9d3aacfb144970625d` (untouched archive).
@@ -13,17 +13,17 @@ physical microphone acceptance remain pending. This is not complete video parity
 |---|---|---|---|---|---|
 | 0 Audit | Complete, host launcher caveat | BASELINE_AUDIT.md | Probe 26/26, sim, root, tree, state POST | 278fe99, 63285c7 | Native py absent from tool PATH; launch.cmd verified |
 | 1 Runtime | Complete | core/runtime.py, server.py | HTTP tests, actual restart | fc74313 | None |
-| 2 State machine | Complete foundation | core/state.py, context.py, ui/jarvis.js | State paths, isolation, voice lifecycle | fc74313, ba9a487 | Wake detector is Phase 11 |
+| 2 State machine | Complete foundation | core/state.py, context.py, ui/jarvis.js | State paths, isolation, voice lifecycle | fc74313, ba9a487 | Spoken interruption remains in Phase 12 |
 | 3 Second brain | Complete foundation | memory/database.py, graph.py | Provenance FKs, evidence, active-only graph | f2aa1f8 | Long-term memory workflows are Phase 19 |
 | 4 Ingestion | Complete supported formats | memory/ingestion.py | MD/TXT/PDF, fingerprints, idempotence, changes/deletes, offsets | f2aa1f8, ba9a487 | OCR and other formats deferred |
 | 5 Semantic retrieval | Implemented, live pending | embeddings.py, retrieval.py | Mock semantic paraphrase, local FTS/fuzzy, model-keyed vectors | 03815ed | Authorized real vectors and personal-corpus relevance; offline is keyword/fuzzy |
 | 6 Astra | Implemented, live pending | ai/astra.py, orchestrator.py, tools.py | Official SDK mocked HTTP, citations, failure fallback | 03815ed, ba9a487 | Account/model access with authorized credentials |
 | 7 Galaxy | Complete foundation | ui/galaxy.js, jarvis.js/css, holo.html | Browser focus/select/source/expand/collapse, mouse/keyboard, sim | ba9a487 | Dedicated graph gestures later; original gestures retained |
-| 8 Voice file search | Implemented, hardware pending | browser recognition, orchestrator | Mock transcript through actual HTTP search, follow-ups | ba9a487 | Real microphone/STT test; no wake word |
+| 8 Voice file search | Implemented, hardware pending | browser recognition, orchestrator | Mock transcript through actual HTTP search, follow-ups | ba9a487 | Real microphone/STT test |
 | 9 Summaries | Implemented, live pending | astra.py, orchestrator, HOLO bridge | Selected/named-source tests, mock AI, local extracts | 03815ed, ba9a487 | Live summary quality |
 | 10 Live research | Complete, live credential pending | research.py, orchestrator.py, runtime.py, ui/jarvis.js | 27 Python tests, mocked SDK HTTP, browser cards/offline flow, probe 26/26 | 45719c8 | Authorized live search quality |
 | 11 Voice | Browser foundation complete, hardware pending | ui/jarvis.js | Interim/final recognition, cancel, lifecycle browser acceptance; probe 26/26 | 780f1cc | Real microphone/VAD acceptance |
-| 12 Wake/interruption | Partial, opt-in wake complete | ui/jarvis.js, runtime.py | Mock “Jarvis” command, wake state event, browser suite, probe 26/26 | This checkpoint | Spoken barge-in, echo/cooldown policy, hardware acceptance |
+| 12 Wake/interruption | Partial, opt-in wake complete | ui/jarvis.js, runtime.py | Mock “Jarvis” command, wake state event, browser suite, probe 26/26 | ef50b56 | Spoken barge-in, echo/cooldown policy, hardware acceptance |
 | 13–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
 
 ## Full checkpoint SHAs
@@ -36,6 +36,7 @@ physical microphone acceptance remain pending. This is not complete video parity
 - HOLO/galaxy: `ba9a4875fd2aae283d5db7156f3a936835c43419`
 - Live research: `45719c8f17fc93a884d11aaa788eeb1a98047344`
 - Browser voice: `780f1cca7b8a366fe1c805b662736f8b51fb299c`
+- Opt-in wake: `ef50b56cabca4e24664c9dc1641566dd62a792da`
 
 ## Final validation
 
