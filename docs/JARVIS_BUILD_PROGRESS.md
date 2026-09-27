@@ -1,11 +1,11 @@
-# JARVIS build progress — continuation through Phase 24, 2026-09-28
+# JARVIS build progress — continuation through Phase 25, 2026-09-28
 
 Branch: `jarvis-second-brain`.
 Phase 22–31 run start SHA: `169d50e08a14823622d2a586035eb688054944ef`.
 Recovered checkpoint before this continuation: `a73081a40c8cdffec16f732a635d729746b90a97`.
 The original archive on D: is unchanged.
 
-Phases 0–23 are preserved and complete. Live account and physical device
+Phases 0–24 are preserved and complete. Live account and physical device
 acceptance remain pending. This is not a full video-parity claim.
 
 ## Phase status, files, validation and remaining work
@@ -37,6 +37,7 @@ acceptance remain pending. This is not a full video-parity claim.
 | 22 Deep H.O.L.O Context | Complete | core/context.py, runtime.py, ui/jarvis.js, galaxy.js | 86 Python tests; note/card/node events; expiry and metadata boundary tests; browser context acceptance; probe 26/26; camera-free launch | a73081a | None |
 | 23 Full Agent / Tool Registry | Complete foundation | tools.py, orchestrator.py, runtime.py | 88 Python tests; 38 typed definitions; argument, permission, unavailable, error, and verification tests; probe 26/26; browser + launch green | SHA in `../FINAL_HANDOFF.md` | Approval ledger is Phase 24 |
 | 24 Permission + Approval Engine | Complete | approvals.py, database.py, runtime.py, tools.py, orchestrator.py, ui/jarvis.js | Expiring pending ledger, exact-argument grant, reject/expire states and redacted preview; registered writes, Gmail send and Calendar mutations require approval; unit/HTTP/browser validation | SHA in `../FINAL_HANDOFF.md` | None |
+| 25 Persistent Visual Cards | Complete | cards.py, database.py, runtime.py, ui/jarvis.js/css | 98 Python tests; 11 supported card types; explicit save, bounded payload, restart restore, pin/dismiss/remove; browser invoice card save/restore; probe 26/26 and camera-free launch | SHA in `../FINAL_HANDOFF.md` | None |
 
 ## Phase 19 continuation checkpoint
 
@@ -113,9 +114,9 @@ No Telegram token or provider key was supplied.
 
 ## Exact continuation point
 
-Phases 0–24 are complete. Continue at Phase 25 — Persistent Visual Cards,
-using the Phase 24 commit recorded in the sibling `../FINAL_HANDOFF.md` as the
-checkpoint. Preserve Phases 0–23 and do not restart or redesign them.
+Phases 0–25 are complete. Continue at Phase 26 — Integrations / Settings Panel,
+using the Phase 25 commit recorded in the sibling `../FINAL_HANDOFF.md` as the
+checkpoint. Preserve Phases 0–24 and do not restart or redesign them.
 
 The only pending checks require the user's own accounts or physical hardware:
 Telegram bot token and user allowlist; optional OpenAI key for voice-note

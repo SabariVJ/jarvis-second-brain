@@ -96,6 +96,21 @@ class HTTPTests(unittest.TestCase):
         status,raw=self.request('/api/tools/execute',{'name':'not_registered','arguments':{}})
         self.assertEqual(status,200);self.assertEqual(json.loads(raw)['error']['code'],'UNKNOWN_TOOL')
 
+    def test_persistent_visual_cards_are_explicit_bounded_and_restorable(self):
+        self.assertEqual(json.loads(self.request('/api/cards')[1])['items'],[])
+        payload={'card_type':'DOCUMENT','title':'Quarterly report','source_id':'local-doc','payload':{
+            'summary':'Review draft','filename':'report.pdf','source_ids':['note1'],'preview_url':'/api/documents/file?id=local-doc'}}
+        status,raw=self.request('/api/cards/save',payload);self.assertEqual(status,200)
+        card=json.loads(raw)['card'];self.assertEqual(card['persistence'],'PERSISTENT')
+        self.assertEqual(json.loads(self.request('/api/cards')[1])['items'][0]['id'],card['id'])
+        self.assertEqual(self.request('/api/cards/action',{'id':card['id'],'action':'pin'})[0],200)
+        self.assertTrue(json.loads(self.request('/api/cards')[1])['items'][0]['pinned'])
+        self.assertEqual(self.request('/api/cards/action',{'id':card['id'],'action':'dismiss'})[0],200)
+        self.assertEqual(json.loads(self.request('/api/cards')[1])['items'],[])
+        self.assertEqual(len(json.loads(self.request('/api/cards?all=1')[1])['items']),1)
+        self.assertEqual(self.request('/api/cards/action',{'id':card['id'],'action':'remove'})[0],200)
+        self.assertEqual(self.request('/api/cards/save',{'card_type':'EMAIL','title':'private','payload':{'subject':'x','body':'secret'}})[0],400)
+
     def test_origin_host_body_and_static_boundary(self):
         self.assertEqual(self.request('/api/memory/reindex',{}, {'Origin':'https://evil.test'})[0],403)
         self.assertEqual(self.request('/api/tree',headers={'Host':'evil.test'})[0],403)

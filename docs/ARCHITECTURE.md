@@ -235,6 +235,16 @@ provider adapters still verify their action-specific confirmation and report
 the provider's result before Jarvis claims success. Web, email, document,
 screen, and Telegram content are arguments/data only and cannot approve.
 
+## Phase 25: Persistent visual cards
+
+`VisualCards` persists only when the user invokes Save. Payload fields are
+allowlisted by card type, JSON is bounded, and credential-like nested keys are
+rejected. Research content remains transient in its existing session store
+unless the user explicitly saves a H.O.L.O card. Persistent cards can be opened,
+expanded, pinned, dismissed or removed; dismissed cards remain recoverable until
+removed. Their content is rendered as text. Only suitable summaries and
+references are accepted for email, Calendar and approval cards.
+
 ## Phase 15: Focus Lock
 
 Focus Lock starts only after the user presses Start or asks for a focus session.

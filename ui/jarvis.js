@@ -31,6 +31,8 @@ async function boot(){
         <h3>ACTION APPROVALS <span class="sub">LOCAL · EXPIRES IN 5 MINUTES</span></h3>
         <div id="approval-results" role="list" aria-live="polite"></div>
       </section>
+      <section id="saved-card-panel" aria-label="Persistent H.O.L.O cards"><h3>H.O.L.O CARDS <span class="sub">TEMPORARY ITEMS ARE SAVED ONLY ON REQUEST</span></h3>
+        <div id="saved-card-results" role="list" aria-live="polite"></div></section>
       <div class="j-row"><button id="j-screen">Explain current screen once</button><span id="j-screen-state" class="sub" role="status" aria-live="polite">SCREEN OFF</span></div>
       <div class="j-row"><button id="j-eyes">Look at this once</button><span id="j-camera-state" class="sub" role="status" aria-live="polite">CAMERA READY</span></div>
       <section id="focus-card" aria-label="H.O.L.O Focus Lock">
@@ -39,11 +41,11 @@ async function boot(){
           <label class="sub">Goal<input id="focus-goal" maxlength="120" value="Deep work"></label></div>
         <label class="sub">Allowed app names, comma separated<input id="focus-allowed" value="code.exe, devenv.exe, pycharm64.exe"></label>
         <label class="sub">Distracting app or site titles<input id="focus-distracting" value="instagram, tiktok, youtube, reddit"></label>
-        <div class="j-row"><button id="focus-start">Start</button><button id="focus-pause">Pause</button><button id="focus-resume">Resume</button><button id="focus-stop">Stop</button></div>
+        <div class="j-row"><button id="focus-start">Start</button><button id="focus-pause">Pause</button><button id="focus-resume">Resume</button><button id="focus-stop">Stop</button><button id="focus-save-card">Save card</button></div>
       </section>
       <section id="briefing-card" aria-label="Morning briefing">
         <h3>JARVIS MORNING BRIEFING <span id="briefing-status" class="sub">NOT RUN</span></h3>
-        <button id="briefing-run" type="button">Give me my morning briefing</button>
+        <button id="briefing-run" type="button">Give me my morning briefing</button><button id="briefing-save-card" type="button" hidden>Save briefing card</button>
         <div id="briefing-detail" class="sub" aria-live="polite">Run when you are ready. Jarvis will not speak automatically at startup.</div>
       </section>
       <section id="calendar-card" aria-label="Google Calendar">
@@ -70,7 +72,7 @@ async function boot(){
       <section id="telegram-card" aria-label="Telegram remote Jarvis">
         <h3>TELEGRAM REMOTE JARVIS <span id="telegram-state" class="sub">CHECKING</span></h3>
         <div class="sub">Opt-in polling. Only private messages from locally allowlisted user IDs are processed. Voice notes require local transcription setup. Document sharing requires local approval and a second confirmation in Telegram.</div>
-        <div class="j-row"><button id="telegram-start" type="button" disabled>Start remote Jarvis</button><button id="telegram-stop" type="button" disabled>Stop remote Jarvis</button><button id="telegram-refresh" type="button">Refresh status</button></div>
+        <div class="j-row"><button id="telegram-start" type="button" disabled>Start remote Jarvis</button><button id="telegram-stop" type="button" disabled>Stop remote Jarvis</button><button id="telegram-refresh" type="button">Refresh status</button><button id="telegram-save-card" type="button">Save status card</button></div>
         <small id="telegram-detail" class="sub" role="status" aria-live="polite"></small>
       </section>
       <section id="document-tools" aria-label="Invoice and document automation">
@@ -141,6 +143,9 @@ async function boot(){
       const expires=document.createElement('small');expires.textContent='Expires '+new Date(item.expires_at*1000).toLocaleTimeString()+' · phrase: '+item.confirmation_phrase;
       const approve=document.createElement('button');approve.textContent='Review and approve';
       const reject=document.createElement('button');reject.textContent='Reject';
+      const saveCard=document.createElement('button');saveCard.textContent='Save approval card';
+      saveCard.onclick=()=>saveVisualCard('APPROVAL',item.tool.replaceAll('_',' '),{approval_id:item.id,tool:item.tool,
+        permission_class:item.permission_class,status:item.status,expires_at:item.expires_at},item.id);
       approve.onclick=async()=>{const phrase=window.prompt('Enter the exact approval phrase shown on this card. This action runs immediately after approval.',item.confirmation_phrase);
         if(phrase===null)return;approve.disabled=reject.disabled=true;try{const done=await api('/api/approvals/confirm',{approval_id:item.id,confirmation:phrase});
           entry(done.tool_result?.ok?'Approved action completed.':'Approved action failed safely.');
@@ -150,9 +155,29 @@ async function boot(){
             if(item.tool.includes('calendar'))checkCalendar().catch(()=>{});if(item.tool.includes('email'))checkGmail().catch(()=>{})}}
         catch(e){entry(e.message||'Approval was not accepted.');await refreshApprovals().catch(()=>{})}};
       reject.onclick=async()=>{approve.disabled=reject.disabled=true;try{await api('/api/approvals/reject',{approval_id:item.id});await refreshApprovals()}catch(e){showError(e)}};
-      row.append(title,preview,expires,document.createElement('br'),approve,reject);host.append(row)}
+      row.append(title,preview,expires,document.createElement('br'),approve,reject,saveCard);host.append(row)}
+  }
+  async function loadVisualCards(){const {items=[]}=await api('/api/cards');const host=$('saved-card-results');host.replaceChildren();
+    for(const item of items){const row=document.createElement('article');row.className='visual-card';row.dataset.id=item.id;
+      const heading=document.createElement('strong');heading.textContent=item.card_type+' · '+item.title;
+      const badge=document.createElement('small');badge.textContent=item.persistence+(item.pinned?' · PINNED':'');
+      const content=document.createElement('pre');content.textContent=JSON.stringify(item.payload,null,2);content.hidden=true;
+      const controls=document.createElement('div');controls.className='j-row';
+      const open=document.createElement('button');open.textContent='Open';open.onclick=()=>{content.hidden=false;
+        const link=item.payload?.preview_url;if(link){try{const url=new URL(link,location.href);if(url.origin===location.origin)window.open(url.href,'_blank','noopener,noreferrer')}catch(_){}}};
+      const expand=document.createElement('button');expand.textContent='Expand';expand.onclick=()=>{content.hidden=!content.hidden;expand.textContent=content.hidden?'Expand':'Collapse'};
+      const pin=document.createElement('button');pin.textContent=item.pinned?'Unpin':'Pin';pin.onclick=async()=>{await api('/api/cards/action',{id:item.id,action:item.pinned?'unpin':'pin'});await loadVisualCards()};
+      const dismiss=document.createElement('button');dismiss.textContent='Dismiss';dismiss.onclick=async()=>{await api('/api/cards/action',{id:item.id,action:'dismiss'});await loadVisualCards()};
+      const remove=document.createElement('button');remove.textContent='Remove';remove.onclick=async()=>{await api('/api/cards/action',{id:item.id,action:'remove'});await loadVisualCards()};
+      controls.append(open,expand,pin,dismiss,remove);row.append(heading,badge,content,controls);host.append(row)}
+    if(!items.length)host.textContent='No persistent cards yet. Save one from a note, research result or integration card.';
+  }
+  async function saveVisualCard(card_type,title,payload,source_id=''){
+    try{await api('/api/cards/save',{card_type,title,payload,source_id});await loadVisualCards();entry('Saved '+card_type+' card to this device.')}
+    catch(error){entry(error.message||'Card could not be saved.','assistant')}
   }
   refreshApprovals().catch(()=>{});setInterval(()=>refreshApprovals().catch(()=>{}),5000);
+  loadVisualCards().catch(()=>{});
   function researchCard(card){
     let el=[...$('research-cards').children].find(x=>x.dataset.id===card.id);
     if(!el){el=document.createElement('article');el.className='research-card';el.dataset.id=card.id;$('research-cards').prepend(el)}
@@ -174,12 +199,14 @@ async function boot(){
     const keep=document.createElement('button');keep.textContent='Keep card';keep.disabled=card.status!=='temporary';
     const save=document.createElement('button');save.textContent=card.status==='saved'?'Saved to brain':'Save to brain';save.disabled=card.status==='saved';
     const dismiss=document.createElement('button');dismiss.textContent='Dismiss';
+    const saveCard=document.createElement('button');saveCard.textContent='Save card';saveCard.onclick=()=>saveVisualCard('RESEARCH',card.query,
+      {query:card.query,answer:card.answer,sources:(card.sources||[]).map(s=>({title:s.title,url:s.url})),researched_at:card.researched_at},card.id);
     async function act(action){for(const b of [keep,save,dismiss])b.disabled=true;
       try{const response=await api('/api/research/card',{session_id:sid,card_id:card.id,action});
         if(action==='dismiss')el.remove();else{researchCard(response.card);if(action==='save'){await refresh();entry('Research saved to the second brain. Its cited web text remains marked untrusted.')}}
       }catch(e){showError(e);researchCard(card)}}
     keep.onclick=()=>act('keep');save.onclick=()=>act('save');dismiss.onclick=()=>act('dismiss');
-    controls.append(expand,keep,save,dismiss);
+    controls.append(expand,keep,save,dismiss,saveCard);
     el.append(heading,badge,summary,detail,controls);
   }
   function showError(e){status('ERROR');entry(e.message||'Operation unavailable','assistant')}
@@ -271,9 +298,11 @@ async function boot(){
       const meta=document.createElement('small');meta.textContent=`${item.category} · ${item.source_type} · importance ${item.importance}`;
       const controls=document.createElement('div');controls.className='j-row';
       const inspect=document.createElement('button');inspect.type='button';inspect.textContent='Why saved';inspect.onclick=async()=>{const full=await api('/api/personal-memory?id='+encodeURIComponent(item.id));text.textContent=full.content+'\nProvenance: '+full.source_type+' · '+full.source_reference};
+      const saveCard=document.createElement('button');saveCard.type='button';saveCard.textContent='Save card';saveCard.onclick=()=>saveVisualCard('MEMORY',item.category,
+        {memory_id:item.id,category:item.category,content:item.content,provenance:item.source_type},item.id);
       const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.onclick=async()=>{const content=prompt('Update this personal memory',item.content);if(content===null)return;await api('/api/personal-memory/update',{id:item.id,content,category:item.category});await loadPersonalMemories()};
       const forget=document.createElement('button');forget.type='button';forget.textContent='Forget';forget.onclick=async()=>{if(!confirm('Forget this saved memory?'))return;await api('/api/personal-memory/forget',{id:item.id});await loadPersonalMemories()};
-      controls.append(inspect,edit,forget);row.append(text,meta,controls);list.append(row)}
+      controls.append(inspect,edit,forget,saveCard);row.append(text,meta,controls);list.append(row)}
     if(!list.children.length){const empty=document.createElement('small');empty.textContent='No saved personal memories match.';list.append(empty)}
   }
   $('personal-memory-search').onclick=()=>loadPersonalMemories().catch(showError);
@@ -285,6 +314,8 @@ async function boot(){
   async function refreshTelegram(){const state=await api('/api/integrations/telegram');
     $('telegram-state').textContent=state.state;
     $('telegram-detail').textContent=`${state.allowed_user_count} allowed user(s) · voice notes ${state.voice_notes} · ${state.sharing.toLowerCase()}`;
+    $('telegram-save-card').onclick=()=>saveVisualCard('TELEGRAM','Telegram status',{sender:'Local Jarvis',summary:
+      `${state.state}; ${state.allowed_user_count} allowlisted user(s); voice notes ${state.voice_notes}; ${state.sharing}`},'telegram-status');
     $('telegram-start').disabled=!state.enabled||!state.configured||state.running;
     $('telegram-stop').disabled=!state.running;
     $('telegram-start').textContent=state.configured?'Start remote Jarvis':'Configure locally to enable';
@@ -326,12 +357,15 @@ async function boot(){
       frame=document.createElement('iframe');frame.title='Generated PDF preview';frame.src=card.preview_url;el.append(frame);preview.textContent='Hide preview'};
     const pin=document.createElement('button');pin.textContent=card.pinned?'Unpin':'Pin';pin.onclick=async()=>{const result=await api('/api/documents/action',{id:card.id,action:card.pinned?'unpin':'pin'});generatedDocument(result)};
     const save=document.createElement('button');save.textContent='Save copy';save.onclick=()=>window.open(card.preview_url+'&download=1','_blank','noopener,noreferrer');
+    const saveCard=document.createElement('button');saveCard.textContent='Save H.O.L.O card';saveCard.onclick=()=>saveVisualCard(contextType,card.title,
+      contextType==='INVOICE'?{document_id:card.id,summary:card.summary,filename:card.filename,preview_url:card.preview_url}:
+      {summary:card.summary,filename:card.filename,source_ids:card.source_ids||[],preview_url:card.preview_url},card.id);
     const share=document.createElement('button');share.textContent=card.share_approved?'Revoke Telegram approval':'Approve Telegram sharing';
     share.onclick=async()=>{if(card.share_approved){generatedDocument(await api('/api/documents/action',{id:card.id,action:'revoke_share'}));return}
       if(!confirm(`Approve this PDF for the allowlisted Telegram bot? It will still require a separate confirmation in Telegram.`))return;
       generatedDocument(await api('/api/documents/action',{id:card.id,action:'approve_share',confirmation:'APPROVE SHARE '+card.id}))};
     const dismiss=document.createElement('button');dismiss.textContent='Dismiss card';dismiss.onclick=async()=>{await api('/api/documents/action',{id:card.id,action:'dismiss'});el.remove()};
-    controls.append(open,preview,pin,save,share,dismiss);el.append(controls);
+    controls.append(open,preview,pin,save,share,dismiss,saveCard);el.append(controls);
   }
   async function loadDocuments(){const result=await api('/api/documents');$('document-cards').replaceChildren();for(const card of result.items||[])generatedDocument(card)}
   $('invoice-form').onsubmit=async e=>{e.preventDefault();$('invoice-state').textContent='Creating PDF…';
@@ -396,7 +430,9 @@ async function boot(){
       detail.append(briefingSection('Recent projects',result.brain.recent_projects,e=>`${e.name} · ${e.source}`));
       detail.append(briefingSection('Focus target',result.focus.state==='ACTIVE'||result.focus.state==='PAUSED'?[result.focus]:[],e=>`${e.goal} · ${Math.ceil((e.remaining_seconds||0)/60)} minutes remaining`));
       const schedule=document.createElement('small');schedule.textContent='Automatic scheduling is off. This briefing runs only when requested.';detail.append(schedule);
-      $('briefing-status').textContent='READY · '+new Date(result.generated_at).toLocaleTimeString();entry(result.spoken,'assistant');speak(result.spoken)
+      $('briefing-status').textContent='READY · '+new Date(result.generated_at).toLocaleTimeString();$('briefing-save-card').hidden=false;
+      $('briefing-save-card').onclick=()=>saveVisualCard('BRIEFING','Morning briefing',{generated_at:result.generated_at,summary:result.spoken,
+        calendar_count:result.calendar.items.length,email_count:result.email.items.length},result.generated_at);entry(result.spoken,'assistant');speak(result.spoken)
     }catch(e){$('briefing-status').textContent='UNAVAILABLE';entry(e.message||'Morning briefing is unavailable.','assistant')}
     finally{$('briefing-run').disabled=false}}
   $('briefing-run').onclick=()=>runBriefing();
@@ -435,6 +471,7 @@ async function boot(){
     if(state.startsWith('ACTIVE')||state.startsWith('PAUSED'))recordContext('FOCUS_SELECTED','FOCUS','active').catch(showError);
   });
   function drawFocus(state){
+    window.jarvisFocusState=state;
     const minutes=Math.ceil((state.remaining_seconds||0)/60),parts=[state.state];
     if(['ACTIVE','PAUSED'].includes(state.state))parts.push(minutes+' min left',state.distraction_count+' distractions');
     if(state.result)parts.push(state.result);
@@ -450,6 +487,9 @@ async function boot(){
   async function focusAction(action,payload={}){try{const state=action==='/api/focus'?await api('/api/focus'):await api(action,payload);drawFocus(state);return state}
     catch(e){entry(e.message||'Focus action failed.','assistant');throw e}}
   await focusAction('/api/focus');
+  $('focus-save-card').onclick=()=>{const state=window.jarvisFocusState||{};saveVisualCard('FOCUS',state.goal||'Focus session',{
+    goal:state.goal||'Focus session',result:state.result||state.state,duration_seconds:state.duration_seconds||0,
+    distraction_count:state.distraction_count||0},String(state.started_at||state.state||'focus'))};
   $('focus-start').onclick=()=>focusAction('/api/focus/start',{minutes:Number($('focus-minutes').value),goal:$('focus-goal').value,
     allowed_apps:focusRules('focus-allowed'),distractions:focusRules('focus-distracting')}).catch(()=>{});
   $('focus-pause').onclick=()=>focusAction('/api/focus/pause',{}).catch(()=>{});
@@ -470,7 +510,9 @@ async function boot(){
         const open=document.createElement('button');open.textContent='Open';open.onclick=()=>openGmailThread(item.thread_id);
         const summary=document.createElement('button');summary.textContent='Summarize';summary.onclick=()=>summarizeGmail(item.thread_id);
         const reply=document.createElement('button');reply.textContent='Reply draft';reply.onclick=()=>{currentGmailThread=item.thread_id;$('gmail-compose').hidden=false;$('gmail-subject').value=item.subject.startsWith('Re:')?item.subject:'Re: '+item.subject;$('gmail-to').value=item.from};
-        controls.append(open,summary,reply);card.append(title,from,snippet,controls);$('gmail-results').append(card)}
+        const keep=document.createElement('button');keep.textContent='Save card';keep.onclick=()=>saveVisualCard('EMAIL',item.subject,
+          {thread_id:item.thread_id,subject:item.subject,sender:item.from,date:item.date,summary:item.snippet},item.thread_id);
+        controls.append(open,summary,reply,keep);card.append(title,from,snippet,controls);$('gmail-results').append(card)}
       if(!result.messages.length)$('gmail-results').textContent='No matching messages.'
     }catch(e){$('gmail-state').textContent='ERROR';entry(e.message||'Gmail request failed.','assistant')}}
   async function openGmailThread(threadId){if(!gmailConnected)return;try{currentGmailThread=threadId;const result=await api('/api/gmail/thread',{thread_id:threadId});
@@ -507,7 +549,10 @@ async function boot(){
       card.className='calendar-item';card.setAttribute('role','listitem');title.textContent=event.summary;time.textContent=`${event.start} – ${event.end}`;select.textContent='Select';
       select.onclick=()=>{selectedCalendarEvent=event;for(const node of $('calendar-results').querySelectorAll('article'))node.dataset.selected='false';card.dataset.selected='true';
         recordContext('CALENDAR_SELECTED','CALENDAR',event.id,{title:event.summary,kind:'EVENT'}).catch(showError);
-        $('calendar-reschedule').disabled=!calendarConnected;$('calendar-cancel').disabled=!calendarConnected};card.append(title,time,select);$('calendar-results').append(card)}
+        $('calendar-reschedule').disabled=!calendarConnected;$('calendar-cancel').disabled=!calendarConnected};
+      const keep=document.createElement('button');keep.textContent='Save card';keep.onclick=()=>saveVisualCard('CALENDAR',event.summary,
+        {event_id:event.id,summary:event.summary,start:event.start,end:event.end},event.id);
+      card.append(title,time,select,keep);$('calendar-results').append(card)}
     if(!items.length)$('calendar-results').textContent='No Calendar events in this range.'}
   async function calendarList(path,payload={}){if(!calendarConnected)return;try{const result=await api(path,payload);drawCalendarEvents(result.items||[]);return result}
     catch(e){$('calendar-action-state').textContent=e.message||'Calendar request failed.';throw e}}

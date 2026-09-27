@@ -55,6 +55,12 @@
 #approval-results{display:flex;flex-direction:column;gap:7px;max-height:220px;overflow:auto}
 .approval-item{border:1px solid #614339;border-radius:8px;padding:8px;overflow-wrap:anywhere}.approval-item small{display:block;color:#c7a99d;margin:5px 0}
 .approval-item pre{white-space:pre-wrap;max-height:90px;overflow:auto;font:10px/1.4 ui-monospace,monospace;color:#ddcec5;margin:5px 0}
+#saved-card-panel{border:1px solid #35645c;border-radius:12px;background:#101a18;padding:10px;display:flex;flex-direction:column;gap:7px}
+#saved-card-panel h3{font:11px ui-monospace,monospace;letter-spacing:.1em;color:#a6e7d1;margin:0}
+#saved-card-results{display:flex;flex-direction:column;gap:7px;max-height:270px;overflow:auto}
+.visual-card{border:1px solid #31534c;border-radius:8px;padding:8px;overflow-wrap:anywhere}.visual-card small{display:block;color:#99bdb2;margin:4px 0}
+.visual-card pre{white-space:pre-wrap;max-height:180px;overflow:auto;font:10px/1.4 ui-monospace,monospace;color:#d5e8e2;margin:5px 0}
+.visual-card pre[hidden]{display:none}
 .focus-fields{display:grid;grid-template-columns:90px 1fr;gap:6px}
 .focus-fields input{padding:7px!important}
 .j-entry{padding:12px 0;border-bottom:1px solid #284038}

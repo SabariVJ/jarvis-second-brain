@@ -23,12 +23,14 @@ from io import BytesIO
 from jarvis.documents import DocumentAutomation
 from jarvis.tools import Tool
 from jarvis.approvals import ApprovalEngine
+from jarvis.cards import VisualCards
 
 class Runtime:
     def __init__(self, root, notes_dir):
         self.root, self.notes_dir = root, notes_dir
         self.sessions = Sessions()
         self.database = Database(Path(os.environ.get('JARVIS_DATA_DIR', str(Path(root)/'data'))) / 'memory.sqlite')
+        self.cards=VisualCards(self.database)
         self.ingestor = Ingestor(self.database)
         self.graph = Graph(self.database)
         self.index_result = self.ingestor.scan(notes_dir())
@@ -215,6 +217,13 @@ class Runtime:
             return {**self.health(),'screen_vision_enabled':self.vision.enabled}
         if method == 'GET' and path == '/api/tools':
             return {'tools':self.orchestrator.tools.definitions(),'shell_available':False}
+        if method == 'GET' and path == '/api/cards':return self.cards.list(query.get('all',[''])[0]=='1')
+        if method == 'POST' and path == '/api/cards/save':
+            return {'card':self.cards.save(data.get('card_type'),data.get('title'),data.get('payload',{}),data.get('source_id',''))}
+        if method == 'POST' and path == '/api/cards/temporary':
+            return {'card':self.cards.add_temporary(data.get('card_type'),data.get('title'),data.get('payload',{}),data.get('source_id',''))}
+        if method == 'POST' and path == '/api/cards/action':
+            return {'card':self.cards.action(data.get('id'),data.get('action'))}
         if method == 'GET' and path == '/api/approvals':
             return self.approvals.list_pending()
         if method == 'POST' and path == '/api/approvals/request':

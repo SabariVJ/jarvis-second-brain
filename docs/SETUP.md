@@ -246,3 +246,9 @@ Review the tool and redacted argument preview, then enter the card's exact
 `APPROVE <approval-id>` phrase. Requests expire after five minutes. Gmail sends
 and Calendar changes remain pending until this step and only report success
 after the provider confirms the operation. Reject requests you did not initiate.
+
+The **H.O.L.O Cards** panel restores saved cards from the local SQLite database.
+Use **Save card** on a research result, memory, email, Calendar item, focus,
+Telegram status, invoice or generated document to keep a concise visual summary.
+Research stays temporary until explicitly saved. Cards can be pinned, dismissed
+or removed, and the interface displays whether a card is persistent.

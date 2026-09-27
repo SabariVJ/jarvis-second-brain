@@ -66,7 +66,13 @@ CREATE TABLE IF NOT EXISTS approvals (
  status TEXT NOT NULL CHECK(status IN ('PENDING','APPROVED','REJECTED','EXPIRED','EXECUTED','FAILED')),
  confirmed_at REAL, executed_at REAL, result_json TEXT NOT NULL DEFAULT '{}');
 CREATE INDEX IF NOT EXISTS approvals_pending ON approvals(status,expires_at,created_at DESC);
-PRAGMA user_version=4;
+CREATE TABLE IF NOT EXISTS visual_cards (
+ id TEXT PRIMARY KEY, card_type TEXT NOT NULL CHECK(card_type IN ('DOCUMENT','RESEARCH','MEMORY','EMAIL','CALENDAR','BRIEFING','FOCUS','INVOICE','TELEGRAM','SYSTEM','APPROVAL')),
+ title TEXT NOT NULL, payload_json TEXT NOT NULL, source_id TEXT NOT NULL DEFAULT '',
+ created_at REAL NOT NULL, updated_at REAL NOT NULL, pinned INTEGER NOT NULL DEFAULT 0,
+ status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','dismissed')));
+CREATE INDEX IF NOT EXISTS visual_cards_latest ON visual_cards(status,pinned DESC,updated_at DESC);
+PRAGMA user_version=5;
 '''
 
 class Database:
@@ -75,7 +81,7 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version > 4: raise ValueError('Database schema is newer than this application')
+            if version > 5: raise ValueError('Database schema is newer than this application')
             db.executescript(SCHEMA)
             columns={row['name'] for row in db.execute('PRAGMA table_info(memories)')}
             additions={
@@ -94,7 +100,7 @@ class Database:
             db.execute('UPDATE memories SET updated_at=created WHERE updated_at=0')
             db.execute('CREATE INDEX IF NOT EXISTS memory_active_category ON memories(status,category,updated_at DESC)')
             db.execute('CREATE INDEX IF NOT EXISTS memory_normalized ON memories(normalized)')
-            db.execute('PRAGMA user_version=4')
+            db.execute('PRAGMA user_version=5')
 
     @contextmanager
     def connect(self):
