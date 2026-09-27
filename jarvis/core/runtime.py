@@ -24,6 +24,7 @@ from jarvis.documents import DocumentAutomation
 from jarvis.tools import Tool
 from jarvis.approvals import ApprovalEngine
 from jarvis.cards import VisualCards
+from jarvis.windows import WindowsTools
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -46,6 +47,7 @@ class Runtime:
         self.long_term_memory=LongTermMemory(self.database)
         data_dir=Path(os.environ.get('JARVIS_DATA_DIR', str(Path(root)/'data')))
         self.documents=DocumentAutomation(self.database,data_dir)
+        self.windows=WindowsTools([notes_dir(),self.documents.generated_dir])
         self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research,self.long_term_memory,self.documents)
         self._telegram_sessions={}
         transcriber=None
@@ -124,8 +126,28 @@ class Runtime:
             'get_active_application':({},'L0_READ'),'get_active_window':({},'L0_READ'),
             'set_volume':({'percent':{'type':'integer','minimum':0,'maximum':100}},'L1_REVERSIBLE')}
         for name,(arguments,permission) in windows.items():add(name,'Safe structured Windows operation; available in Phase 27.',arguments,permission,off,False)
-        add('get_system_info','Read non-identifying runtime and platform information.',{},'L0_READ',
-            lambda:{'platform':os.name,'python':__import__('platform').python_version(),'service':'Jarvis local'})
+        native_available=os.name=='nt'
+        for name in ('open_application','open_file','open_folder','open_url','get_active_application','get_active_window','set_volume'):
+            registry.tools[name].available=native_available
+        registry.tools['open_application'].function=self.windows.open_application
+        registry.tools['open_url'].function=lambda url:self.windows.open_url(url)
+        registry.tools['open_file'].function=lambda path:self.windows.open_file(path)
+        registry.tools['open_folder'].function=lambda path:self.windows.open_folder(path)
+        registry.tools['get_active_application'].function=self.windows.get_active_application
+        registry.tools['get_active_window'].function=self.windows.get_active_window
+        registry.tools['set_volume'].function=self.windows.set_volume
+        registry.preflight=self.windows.validate_request
+        add('capture_screenshot','Use the explicit browser screen picker for one transient frame.',{},'L2_PERSONAL_WRITE',
+            self.windows.capture_screenshot,False)
+        add('open_latest_invoice','Open the most recently generated local invoice after authorization.',{},'L1_REVERSIBLE',
+            self._open_latest_invoice,native_available)
+        add('get_system_info','Read non-identifying runtime and platform information.',{},'L0_READ',self.windows.get_system_info)
+
+    def _open_latest_invoice(self):
+        with self.database.connect() as db:
+            row=db.execute("SELECT relative_path FROM generated_documents WHERE kind='invoice' AND status='active' ORDER BY created_at DESC LIMIT 1").fetchone()
+        if not row:raise ValueError('No active generated invoice is available')
+        return self.windows.open_file(str((self.documents.generated_dir/row['relative_path']).resolve()))
 
     def _list_indexed_documents(self,limit=30):
         with self.database.connect() as db:
@@ -161,6 +183,8 @@ class Runtime:
             database_state='CONNECTED' if database_ok else 'ERROR'
         except Exception:database_state='ERROR';database_ok=False;sources=0
         gmail=self.gmail.status();calendar=self.calendar.status();telegram=self.telegram.status();focus=self.focus.status()
+        active_windows=all(self.orchestrator.tools.tools[name].available for name in
+            ('open_application','open_file','open_folder','open_url','get_active_application','get_active_window','set_volume'))
         integrations=[
             {'name':'OPENAI / ASTRA','status':'CONNECTED' if self.brain.enabled else 'ACTION REQUIRED',
              'detail':self.brain.model if self.brain.enabled else 'Configure an API key locally for live Astra.'},
@@ -178,7 +202,8 @@ class Runtime:
              'detail':'Google OAuth configured; changes still require approval.' if calendar.get('connected') else 'Configure local Google OAuth credentials and authorize Calendar.'},
             {'name':'TELEGRAM','status':'CONNECTED' if telegram.get('running') else ('ERROR' if telegram.get('state')=='ERROR' else ('DISABLED' if not telegram.get('enabled') else ('ACTION REQUIRED' if not telegram.get('configured') else 'CONNECTED'))),
              'detail':f"{telegram.get('allowed_user_count',0)} allowlisted user(s); token is never returned."},
-            {'name':'WINDOWS TOOLS','status':'ACTION REQUIRED','detail':'Structured, allowlisted controls are being enabled in Phase 27; no shell tool is available.'},
+            {'name':'WINDOWS TOOLS','status':'CONNECTED' if active_windows else 'ACTION REQUIRED',
+             'detail':'Allowlisted app/file/browser actions, read-only foreground checks and approved master-volume control; screen capture uses the explicit browser picker; no shell tool is available.' if active_windows else 'Structured Windows controls are unavailable on this platform; no shell tool is available.'},
             {'name':'AUTOMATIONS','status':'DISABLED','detail':'Automations are off until you explicitly enable an individual rule.'},
         ]
         return {'integrations':integrations,'diagnostics':{'provider_available':self.brain.enabled,

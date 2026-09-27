@@ -256,6 +256,20 @@ never probes hardware. Provider configuration is represented by state and
 setup guidance, never credential values. Unsupported features are labeled as
 requiring setup or disabled rather than presented as connected.
 
+## Phase 27: Safe Windows computer control
+
+The Windows adapter exposes only fixed application aliases, public HTTP(S)
+URLs, files/folders beneath the indexed notes and generated-document roots,
+read-only active process/window inspection, and master playback volume. Launches
+use a resolved executable with `shell=False`; local paths are canonicalized,
+bounded to configured roots and reject script/executable file types. URLs reject
+non-web schemes, embedded credentials and local hostnames. Mutating operations
+use the Phase 24 approval ledger. Foreground title/process data are returned only
+on direct query and never written to logs or memory. Screen capture stays with
+the existing explicit browser display chooser; no screenshot is persisted. No
+shell or arbitrary command execution is exposed. Volume and native foreground
+inspection still need physical Windows acceptance.
+
 ## Phase 15: Focus Lock
 
 Focus Lock starts only after the user presses Start or asks for a focus session.

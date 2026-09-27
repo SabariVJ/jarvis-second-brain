@@ -2,7 +2,7 @@
 import re
 import secrets
 from jarvis.ai.astra import local_summary
-from jarvis.tools import Registry, Tool
+from jarvis.tools import Registry, Tool, ToolPermissionError, ToolError
 
 class Orchestrator:
     def __init__(self, database, retrieval, graph, brain, research=None, long_term_memory=None, document_service=None):
@@ -45,6 +45,26 @@ class Orchestrator:
                 state.transition('INTERRUPTED'); state.transition('IDLE')
             state.transition('RETRIEVING')
             q = re.sub(r'^\s*jarvis[,\s]*','',message.strip(), flags=re.I).lower()
+            windows_request=self._windows_intent(message)
+            if windows_request:
+                name,args=windows_request
+                try:
+                    result=self.tools.execute(name,args)['result']
+                    state.transition('THINKING')
+                    return self._finish(self._windows_text(name,result),[],[],state,'windows_tool',None)
+                except ToolPermissionError:
+                    state.transition('THINKING')
+                    pending=self.approvals.request(name,args,context.context_snapshot()) if self.approvals else None
+                    answer='I staged this Windows action in Action Approvals. Review and approve it before it runs.'
+                    response=self._finish(answer,[],[],state,'approval_required',None)
+                    if pending:response['approval']=pending
+                    return response
+                except ToolError as error:
+                    state.transition('THINKING')
+                    return self._finish(error.result['error']['message'],[],[],state,'windows_tool_unavailable',None)
+                except Exception:
+                    state.transition('THINKING')
+                    return self._finish('Windows could not complete that action. No shell command was run.',[],[],state,'windows_tool_error',None)
             research_match = re.match(r'^(?:research|search (?:the )?web(?: for)?|look up (?:the latest )?information (?:on|about))\s+(.+)$',q)
             if research_match:
                 query = research_match.group(1).strip()
@@ -227,6 +247,31 @@ class Orchestrator:
             self._memory_write('forget_memory',{'memory_id':memory_id},context);context.last_memory_id=None
             return self._finish('I deleted that personal memory.',[],[],state,'personal_memory',None)
         return None
+
+    @staticmethod
+    def _windows_intent(message):
+        raw=re.sub(r'^\s*jarvis[,\s]*','',message.strip(),flags=re.I)
+        if re.fullmatch(r'(?:what application am i using|what app am i using|which application is active|what is in the foreground)\??',raw,re.I):
+            return 'get_active_application',{}
+        if re.fullmatch(r'open (?:the )?(?:latest )?invoice\.?',raw,re.I):return 'open_latest_invoice',{}
+        match=re.fullmatch(r'(?:set|change) (?:the )?(?:master )?volume to (\d{1,3})(?:\s*percent|%)?\.?',raw,re.I)
+        if match:return 'set_volume',{'percent':int(match.group(1))}
+        match=re.fullmatch(r'open (?:application )?(.+?)(?:\s+app)?\.?',raw,re.I)
+        if match and match.group(1).strip().casefold() in {'vs code','visual studio code','vscode','notepad','text editor','file explorer','explorer','edge','microsoft edge','chrome','google chrome'}:
+            return 'open_application',{'application':match.group(1).strip()}
+        match=re.fullmatch(r'open (?:url )?(https?://\S+)',raw,re.I)
+        if match:return 'open_url',{'url':match.group(1)}
+        match=re.fullmatch(r'open (?:file )(.+)',raw,re.I)
+        if match:return 'open_file',{'path':match.group(1).strip().strip('"')}
+        match=re.fullmatch(r'open folder (.+)',raw,re.I)
+        if match:return 'open_folder',{'path':match.group(1).strip().strip('"')}
+        return None
+
+    @staticmethod
+    def _windows_text(name,result):
+        if name=='get_active_application':return 'The active application is '+(result.get('application') or 'unknown')+'.'
+        if name=='get_active_window':return 'The active window is '+(result.get('title') or 'untitled')+'.'
+        return 'Windows confirmed the open action for '+str(result.get('application') or result.get('path') or result.get('url') or 'the requested item')+'.'
 
     def _local(self, sources, summary):
         if summary:

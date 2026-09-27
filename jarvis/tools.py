@@ -46,7 +46,7 @@ def _schema_python_type(value):
 
 class Registry:
     def __init__(self,authorizer=None):
-        self.tools={};self.authorizer=authorizer
+        self.tools={};self.authorizer=authorizer;self.preflight=None
 
     def register(self,tool):
         if not isinstance(tool,Tool) or not tool.name or not callable(tool.function):raise ValueError('Tool definition is invalid')
@@ -98,6 +98,7 @@ class Registry:
             for key,value in args.items():self._validate_value(value,schema[key],key)
         except ToolError as error:
             error.result['tool']=name;raise
+        if self.preflight and tool.available:self.preflight(name,args)
         return tool,args
 
     def execute(self,name,args,*,authorization=None):

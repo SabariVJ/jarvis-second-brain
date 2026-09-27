@@ -360,12 +360,19 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     let speechAnswer='This sentence contains the word stop as echo bait.';
     await page.route('**/api/jarvis/chat',async route=>{
       const body=route.request().postDataJSON();
+      if(body.message.toLowerCase().includes('open vs code'))return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({answer:'I staged this Windows action in Action Approvals. Review and approve it before it runs.',
+        sources:[],node_ids:[],mode:'approval_required',warning:null,action:'focus',state:'IDLE',events:[],approval:makeApproval('open_application',{application:'VS Code'})})});
       if(body.message==='fixture speech')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({answer:speechAnswer,
         sources:[],node_ids:[],mode:'local',warning:null,action:'focus',state:'IDLE',events:[]})});
       if(body.message.toLowerCase().startsWith('research '))return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({answer:research?.answer||'Research fixture',
         sources:[],node_ids:[],mode:'research',warning:null,action:'focus',state:'IDLE',events:[],research_card:research})});
       return route.continue();
     });
+    await page.locator('#j-input').fill('Jarvis, open VS Code.');await page.locator('#j-send').click();
+    await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('staged this Windows action'));
+    await page.waitForFunction(()=>document.querySelector('#approval-results').textContent.includes('open application'));
+    page.once('dialog',dialog=>dialog.accept(dialog.defaultValue()));await page.locator('#approval-results button').first().click();
+    await page.waitForFunction(()=>document.querySelector('#approval-results').textContent==='');
     await page.locator('#j-wake').check();await page.waitForTimeout(450);
     await page.locator('#j-speak').check();
     async function requestSpeech(){await page.locator('#j-input').fill('fixture speech');await page.locator('#j-send').click();

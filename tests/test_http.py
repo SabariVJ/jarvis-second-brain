@@ -97,7 +97,8 @@ class HTTPTests(unittest.TestCase):
             'confirmation':pending['approval']['confirmation_phrase']})[0],200)
         self.assertEqual(json.loads(self.request('/api/approvals')[1])['items'],[])
         status,raw=self.request('/api/tools/execute',{'name':'open_url','arguments':{'url':'file:///secret'},'approved':True})
-        self.assertEqual(status,200);self.assertEqual(json.loads(raw)['error']['code'],'TOOL_UNAVAILABLE')
+        if os.name=='nt':self.assertEqual(status,400)
+        else:self.assertEqual(status,200);self.assertEqual(json.loads(raw)['error']['code'],'TOOL_UNAVAILABLE')
         status,raw=self.request('/api/tools/execute',{'name':'not_registered','arguments':{}})
         self.assertEqual(status,200);self.assertEqual(json.loads(raw)['error']['code'],'UNKNOWN_TOOL')
 
@@ -115,6 +116,23 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(len(json.loads(self.request('/api/cards?all=1')[1])['items']),1)
         self.assertEqual(self.request('/api/cards/action',{'id':card['id'],'action':'remove'})[0],200)
         self.assertEqual(self.request('/api/cards/save',{'card_type':'EMAIL','title':'private','payload':{'subject':'x','body':'secret'}})[0],400)
+
+    def test_natural_language_windows_open_is_staged_until_approval(self):
+        from unittest.mock import Mock
+        tool=server.RUNTIME.orchestrator.tools.tools['open_application'];tool.available=True;tool.function=Mock(return_value={'opened':True,'application':'code'})
+        sid=json.loads(self.request('/api/jarvis/session',{})[1])['session_id']
+        response=json.loads(self.request('/api/jarvis/chat',{'session_id':sid,'message':'Jarvis, open VS Code.'})[1])
+        self.assertEqual(response['mode'],'approval_required');self.assertIn('Action Approvals',response['answer'])
+        tool.function.assert_not_called()
+        approved=json.loads(self.request('/api/approvals/confirm',{'approval_id':response['approval']['id'],
+            'confirmation':response['approval']['confirmation_phrase']})[1])
+        self.assertTrue(approved['tool_result']['ok']);tool.function.assert_called_once_with(application='VS Code')
+        volume=server.RUNTIME.orchestrator.tools.tools['set_volume'];volume.available=True;volume.function=Mock(return_value={'changed':True,'percent':40})
+        response=json.loads(self.request('/api/jarvis/chat',{'session_id':sid,'message':'Set volume to 40 percent.'})[1])
+        self.assertEqual(response['mode'],'approval_required');volume.function.assert_not_called()
+        approved=json.loads(self.request('/api/approvals/confirm',{'approval_id':response['approval']['id'],
+            'confirmation':response['approval']['confirmation_phrase']})[1])
+        self.assertTrue(approved['tool_result']['ok']);volume.function.assert_called_once_with(percent=40)
 
     def test_origin_host_body_and_static_boundary(self):
         self.assertEqual(self.request('/api/memory/reindex',{}, {'Origin':'https://evil.test'})[0],403)

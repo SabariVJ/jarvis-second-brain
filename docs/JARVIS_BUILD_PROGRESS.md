@@ -1,11 +1,11 @@
-# JARVIS build progress — continuation through Phase 26, 2026-09-28
+# JARVIS build progress — continuation through Phase 27, 2026-09-28
 
 Branch: `jarvis-second-brain`.
 Phase 22–31 run start SHA: `169d50e08a14823622d2a586035eb688054944ef`.
 Recovered checkpoint before this continuation: `a73081a40c8cdffec16f732a635d729746b90a97`.
 The original archive on D: is unchanged.
 
-Phases 0–25 are preserved and complete. Live account and physical device
+Phases 0–26 are preserved and complete. Live account and physical device
 acceptance remain pending. This is not a full video-parity claim.
 
 ## Phase status, files, validation and remaining work
@@ -39,6 +39,7 @@ acceptance remain pending. This is not a full video-parity claim.
 | 24 Permission + Approval Engine | Complete | approvals.py, database.py, runtime.py, tools.py, orchestrator.py, ui/jarvis.js | Expiring pending ledger, exact-argument grant, reject/expire states and redacted preview; registered writes, Gmail send and Calendar mutations require approval; unit/HTTP/browser validation | SHA in `../FINAL_HANDOFF.md` | None |
 | 25 Persistent Visual Cards | Complete | cards.py, database.py, runtime.py, ui/jarvis.js/css | 98 Python tests; 11 supported card types; explicit save, bounded payload, restart restore, pin/dismiss/remove; browser invoice card save/restore; probe 26/26 and camera-free launch | SHA in `../FINAL_HANDOFF.md` | None |
 | 26 Integrations / Settings Panel | Complete foundation | core/runtime.py, ui/jarvis.js/css, docs/SETUP.md | 98 Python tests; 12 safe status rows and DB/index diagnostics; browser status panel; no credential exposure or hardware prompt; probe 26/26 and camera-free launch | SHA in `../FINAL_HANDOFF.md` | Live provider/device diagnostics require local setup |
+| 27 Safe Windows Computer Control | Complete safe adapter; live Windows acceptance pending | windows.py, core/runtime.py, core/orchestrator.py, tools.py | 103 Python tests; allowlisted app/file/public URL, path traversal and script guard, foreground mocks, volume mock, typed approvals and natural-language browser flow; probe 26/26; camera-free launch | SHA in `../FINAL_HANDOFF.md` | Physical Windows active-window/audio test; screenshot remains one-shot browser chooser |
 
 ## Phase 19 continuation checkpoint
 
@@ -115,9 +116,9 @@ No Telegram token or provider key was supplied.
 
 ## Exact continuation point
 
-Phases 0–26 are complete. Continue at Phase 27 — Safe Windows Computer Control,
-using the Phase 25 commit recorded in the sibling `../FINAL_HANDOFF.md` as the
-checkpoint. Preserve Phases 0–25 and do not restart or redesign them.
+Phases 0–27 are complete. Continue at Phase 28 — Offline / Degraded Mode,
+using the Phase 27 commit recorded in the sibling `../FINAL_HANDOFF.md` as the
+checkpoint. Preserve Phases 0–26 and do not restart or redesign them.
 
 The only pending checks require the user's own accounts or physical hardware:
 Telegram bot token and user allowlist; optional OpenAI key for voice-note

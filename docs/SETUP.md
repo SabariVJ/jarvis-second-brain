@@ -259,3 +259,13 @@ credential values. Voice, wake and camera status are checked in the browser only
 after you use the corresponding control. Use this guide for local OAuth and API
 configuration; live Gmail, Calendar, Astra and Telegram checks need your own
 authorized accounts.
+
+On Windows, Jarvis can open installed allowlisted apps such as VS Code,
+Notepad, Explorer, Edge and Chrome; open files only from the indexed notes or
+generated documents; open public HTTP(S) pages; inspect the foreground app on
+request; and set master volume. App/file/browser/volume actions require the
+local Action Approvals step. The foreground title is not logged or persisted.
+Screen capture continues through **Explain current screen once**, which uses
+the browser's explicit display chooser and discards its frame after analysis.
+Native volume and foreground behavior should be physically verified on your
+Windows machine.
