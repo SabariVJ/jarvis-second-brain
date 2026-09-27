@@ -17,7 +17,7 @@ async function boot(){
       <div id="j-selection" class="sub">Select a note, or search your memory.</div>
       <div id="j-log" role="log" aria-live="polite"></div>
       <form id="j-form"><label class="sub" for="j-input">Ask Jarvis</label><input id="j-input" placeholder="Find my notes about…" maxlength="4000" autocomplete="off"><div class="j-row" style="margin-top:8px"><button id="j-send">Send</button><button type="button" id="j-summary">Summarize selected</button></div></form>
-      <div class="j-row"><button id="j-mic">Use browser voice</button><button id="j-stop">Stop speech</button><label class="sub"><input type="checkbox" id="j-speak"> Read aloud</label></div>
+      <div class="j-row"><button id="j-mic">Use browser voice</button><button id="j-stop">Stop speech</button><label class="sub"><input type="checkbox" id="j-speak"> Read aloud</label><label class="sub"><input type="checkbox" id="j-wake"> Wake mode</label></div>
       <div class="sub" id="j-voice-note">Voice is opt-in and may use your browser’s online speech service.</div>
       <div class="sub" id="j-transcript" role="status" aria-live="polite"></div>
       <div class="j-row"><button id="j-index">Reindex notes</button><button id="j-embed" hidden>Build semantic index</button><span class="sub" id="j-count"></span></div>
@@ -28,6 +28,7 @@ async function boot(){
     </section>`);
   const $=id=>document.getElementById(id);
   let sid,selected=null,busy=false,galaxy=null,speechToken=0,lastFocus=null,speaking=false;
+  let resumeWake=()=>{};
   const status=value=>{$('j-status').textContent=value;$('jarvis-panel').dataset.state=value;};
   async function api(path,data){const r=await fetch(path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     const result=await r.json();if(!r.ok)throw new Error(result.error||'Request failed');return result}
@@ -89,11 +90,11 @@ async function boot(){
   try{for(const card of (await api('/api/research/cards?session_id='+encodeURIComponent(sid))).cards)researchCard(card)}catch(e){showError(e)}
   $('brain-toggle').onclick=()=>{$('galaxy').hidden=!$('galaxy').hidden;$('brain-toggle').setAttribute('aria-expanded',String(!$('galaxy').hidden))};
   async function stopSpeech(){speechToken++;window.speechSynthesis?.cancel();if(speaking){speaking=false;
-    await api('/api/jarvis/voice-state',{session_id:sid,state:'INTERRUPTED'});await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})}if(!busy)status('IDLE')}
+    await api('/api/jarvis/voice-state',{session_id:sid,state:'INTERRUPTED'});await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})}if(!busy)status('IDLE');resumeWake()}
   $('j-stop').onclick=()=>stopSpeech().catch(showError);
   function speak(text){if(!$('j-speak').checked||!window.speechSynthesis)return;const token=++speechToken;
-    const utterance=new SpeechSynthesisUtterance(text);utterance.onstart=()=>{speaking=true;status('SPEAKING');api('/api/jarvis/voice-state',{session_id:sid,state:'SPEAKING'}).catch(()=>{})};
-    utterance.onend=utterance.onerror=()=>{if(token===speechToken){speaking=false;status('IDLE');api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'}).catch(()=>{})}};window.speechSynthesis.speak(utterance)}
+    const utterance=new SpeechSynthesisUtterance(text);utterance.onstart=()=>{speaking=true;status('SPEAKING');resumeWake();api('/api/jarvis/voice-state',{session_id:sid,state:'SPEAKING'}).catch(()=>{})};
+    utterance.onend=utterance.onerror=()=>{if(token===speechToken){speaking=false;status('IDLE');api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'}).then(()=>resumeWake()).catch(()=>{})}};window.speechSynthesis.speak(utterance)}
   async function ask(message){if(busy||!message.trim())return;busy=true;await stopSpeech();$('j-send').disabled=true;status('RETRIEVING');entry(message,'user');
     const poll=setInterval(()=>api('/api/jarvis/state?session_id='+encodeURIComponent(sid)).then(s=>{if(busy)status(s.state)}).catch(()=>{}),250);
     try{const result=await api('/api/jarvis/chat',{session_id:sid,message,selected_id:selected,spoken:$('j-speak').checked});
@@ -111,13 +112,40 @@ async function boot(){
   $('j-index').onclick=async()=>{try{status('INDEXING');await api('/api/memory/reindex',{});await refresh();status('IDLE')}catch(e){showError(e)}};
   $('j-embed').onclick=async()=>{try{status('EMBEDDING · SENDING NOTE CHUNKS TO OPENAI');await api('/api/memory/embed',{});await refresh();status('IDLE')}catch(e){showError(e)}};
   const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!Recognition){$('j-mic').disabled=true;$('j-voice-note').textContent='Speech recognition unavailable in this browser. Text mode is ready.'}
-  else {let recognition=null,voiceProcessing=false,voiceStarting=false;
+  if(!Recognition){$('j-mic').disabled=true;$('j-wake').disabled=true;$('j-voice-note').textContent='Speech recognition unavailable in this browser. Text mode is ready.'}
+  else {let recognition=null,voiceProcessing=false,voiceStarting=false,wakeRecognition=null,wakeTimer=null,wakeArmedUntil=0;
+    function stopWake(){clearTimeout(wakeTimer);wakeTimer=null;if(wakeRecognition){const current=wakeRecognition;wakeRecognition=null;current.stop()}}
+    function scheduleWake(){clearTimeout(wakeTimer);if(!$('j-wake').checked||speaking||busy||recognition||voiceProcessing)return;
+      wakeTimer=setTimeout(()=>{wakeTimer=null;startWake()},350)}
+    function startWake(){if(!$('j-wake').checked||speaking||busy||recognition||wakeRecognition)return;
+      const current=new Recognition();wakeRecognition=current;current.lang=navigator.language||'en-US';current.continuous=false;current.interimResults=false;
+      current.onresult=e=>{const final=Array.from(e.results||[]).find(r=>r.isFinal);if(!final||wakeRecognition!==current)return;
+        const heard=(final[0]?.transcript||'').trim();const match=heard.match(/\bjarvis\b[\s,.:;!?]*(.*)$/i);
+        if(!match&&Date.now()>wakeArmedUntil)return;
+        const command=(match?match[1]:heard).trim();stopWake();
+        (async()=>{try{if(match){await api('/api/jarvis/voice-state',{session_id:sid,state:'WAKE_DETECTED'});
+            await api('/api/jarvis/voice-state',{session_id:sid,state:'LISTENING'});status('WAKE DETECTED · LISTENING')}
+          if(!command){wakeArmedUntil=Date.now()+8000;scheduleWake();return}
+          wakeArmedUntil=0;await api('/api/jarvis/voice-state',{session_id:sid,state:'TRANSCRIBING'});
+          await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'});await ask(command)}
+          catch(err){showError(err)}finally{scheduleWake()}})();
+      };
+      current.onerror=e=>{if(wakeRecognition!==current)return;wakeRecognition=null;$('j-wake').checked=false;
+        wakeArmedUntil=0;entry('Wake mode stopped: '+(e.error||'microphone unavailable'));status('IDLE')};
+      current.onend=()=>{if(wakeRecognition!==current)return;wakeRecognition=null;
+        if(wakeArmedUntil&&Date.now()>wakeArmedUntil){wakeArmedUntil=0;api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'}).catch(()=>{});status('IDLE')}
+        scheduleWake()};
+      try{current.start()}catch(e){wakeRecognition=null;$('j-wake').checked=false;entry('Wake mode unavailable: '+e.message)}
+    }
+    resumeWake=()=>{if(speaking||busy||recognition||voiceProcessing)stopWake();else scheduleWake()};
+    $('j-wake').onchange=async()=>{if($('j-wake').checked){$('j-voice-note').textContent='Wake mode active. Browser microphone recognition may use an online speech service.';
+        scheduleWake()}else{stopWake();wakeArmedUntil=0;$('j-voice-note').textContent='Voice is opt-in and may use your browser’s online speech service.';
+        try{await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})}catch(_){}}};
     const resetMic=()=>{$('j-mic').textContent='Use browser voice';$('j-mic').disabled=false};
     $('j-mic').onclick=async()=>{if(busy||voiceProcessing||voiceStarting)return;
       if(recognition){const current=recognition;recognition=null;current.stop();resetMic();$('j-transcript').textContent='';
         await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'});status('IDLE');return}
-      voiceStarting=true;$('j-mic').disabled=true;
+      stopWake();wakeArmedUntil=0;voiceStarting=true;$('j-mic').disabled=true;
       try{await stopSpeech();const current=new Recognition();recognition=current;
         current.lang=navigator.language||'en-US';current.continuous=false;current.interimResults=true;
         current.onstart=()=>{if(recognition!==current)return;voiceStarting=false;$('j-mic').disabled=false;status('LISTENING · MIC ACTIVE');$('j-mic').textContent='Stop listening'};
@@ -132,9 +160,9 @@ async function boot(){
         };
         current.onerror=e=>{if(recognition!==current)return;recognition=null;voiceStarting=false;resetMic();
           $('j-transcript').textContent='';entry('Microphone unavailable: '+(e.error||'unknown error'));
-          status('ERROR');api('/api/jarvis/voice-state',{session_id:sid,state:'ERROR'}).then(()=>api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})).catch(()=>{})};
+          status('ERROR');api('/api/jarvis/voice-state',{session_id:sid,state:'ERROR'}).then(()=>api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})).then(()=>scheduleWake()).catch(()=>{})};
         current.onend=()=>{if(recognition!==current)return;recognition=null;voiceStarting=false;resetMic();
-          $('j-transcript').textContent='';if(!busy&&!voiceProcessing){api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'}).catch(()=>{});status('IDLE')}};
+          $('j-transcript').textContent='';if(!busy&&!voiceProcessing){api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'}).then(()=>scheduleWake()).catch(()=>{});status('IDLE')}};
         await api('/api/jarvis/voice-state',{session_id:sid,state:'LISTENING'});current.start();
       }catch(e){recognition=null;voiceStarting=false;resetMic();$('j-transcript').textContent='';
         api('/api/jarvis/voice-state',{session_id:sid,state:'ERROR'}).then(()=>api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})).catch(()=>{});showError(e)}};

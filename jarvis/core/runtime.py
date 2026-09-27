@@ -92,7 +92,7 @@ class Runtime:
                 context.select(doc_id)
                 return {'ok':True,'selected_id':doc_id}
             target = data.get('state')
-            if target not in ('LISTENING','TRANSCRIBING','SPEAKING','IDLE','ERROR','INTERRUPTED'):
+            if target not in ('WAKE_DETECTED','LISTENING','TRANSCRIBING','SPEAKING','IDLE','ERROR','INTERRUPTED'):
                 raise ValueError('Invalid client voice state')
             if context.lock.locked(): raise ValueError('Response is running')
             state.transition(target)

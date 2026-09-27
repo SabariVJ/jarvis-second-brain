@@ -36,8 +36,11 @@ All requests enter a validated state machine. Text starts at RETRIEVING; browser
 voice reports LISTENING/TRANSCRIBING, then uses the same chat route. Browser
 recognition shows interim text without submitting it; only a final result enters
 chat. The microphone control can cancel listening, and failed starts reset it.
-TTS reports SPEAKING and stop reports INTERRUPTED. Wake states are defined for
-Phase 12; no wake-word detection is claimed. Camera is explicit through RETRY CAMERA or ?camera=1.
+TTS reports SPEAKING and stop reports INTERRUPTED. An opt-in browser wake mode
+listens for “Jarvis” and can accept a command in the same phrase or the next
+phrase. It pauses recognition during playback to avoid hearing Jarvis's own
+speech; spoken barge-in during playback remains pending. Camera is explicit
+through RETRY CAMERA or ?camera=1.
 Simulation/probe never need hardware. Existing J mode remains the gesture narrator.
 
 The tool registry only exposes validated read operations. Risk >0 is denied
