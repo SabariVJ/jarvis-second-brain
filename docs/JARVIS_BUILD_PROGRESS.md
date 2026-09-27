@@ -23,7 +23,7 @@ physical microphone acceptance remain pending. This is not complete video parity
 | 9 Summaries | Implemented, live pending | astra.py, orchestrator, HOLO bridge | Selected/named-source tests, mock AI, local extracts | 03815ed, ba9a487 | Live summary quality |
 | 10 Live research | Complete, live credential pending | research.py, orchestrator.py, runtime.py, ui/jarvis.js | 27 Python tests, mocked SDK HTTP, browser cards/offline flow, probe 26/26 | 45719c8 | Authorized live search quality |
 | 11 Voice | Browser foundation complete, hardware pending | ui/jarvis.js | Interim/final recognition, cancel, lifecycle browser acceptance; probe 26/26 | 780f1cc | Real microphone/VAD acceptance |
-| 12 Wake/interruption | Partial, opt-in wake complete | ui/jarvis.js, runtime.py | Mock “Jarvis” command, wake state event, browser suite, probe 26/26 | ef50b56 | Spoken barge-in, echo/cooldown policy, hardware acceptance |
+| 12 Wake/interruption | Complete, hardware acceptance pending | ui/jarvis.js, runtime.py | Mock stop/cancel/enough, echo filter, TTS wake suppression/resume, mute, denied/unavailable speech; probe 26/26 | This checkpoint | Real microphone/acoustic acceptance |
 | 13–31 | Not started as phases | MASTER_SPEC.md | None claimed | — | Later integrations |
 
 ## Full checkpoint SHAs
@@ -37,6 +37,7 @@ physical microphone acceptance remain pending. This is not complete video parity
 - Live research: `45719c8f17fc93a884d11aaa788eeb1a98047344`
 - Browser voice: `780f1cca7b8a366fe1c805b662736f8b51fb299c`
 - Opt-in wake: `ef50b56cabca4e24664c9dc1641566dd62a792da`
+- Phase 12 spoken interruption: pending final validation and commit
 
 ## Final validation
 
@@ -49,7 +50,8 @@ physical microphone acceptance remain pending. This is not complete video parity
   source reader, selected summaries, follow-ups, expand/collapse, typing isolation,
   mocked voice transcript, reindex, narrow viewport, research offline state and
   mocked temporary-card controls, interim and final speech recognition, listening
-  cancellation, opt-in wake command with actual server wake-state transition.
+  cancellation, opt-in wake command, spoken interruption and mute, echo and
+  wake suppression during playback, wake resume, denied/unavailable speech.
   **Zero page errors.**
 - Windows launch.cmd successfully starts server.py on http://localhost:4890.
 - Sample index: eight documents/chunks/entities/edges; no extraction errors.
@@ -64,14 +66,12 @@ physical microphone acceptance remain pending. This is not complete video parity
    citations, semantic paraphrase after explicit vector indexing, and actual
    microphone transcript search independent of the camera. Record results without
    secrets or private source bodies. Mocks do not prove live account access.
-3. **Next coding task: complete Phase 12 interruption.** Wake mode is opt-in and
-   recognizes “Jarvis” with or without an inline command. It currently pauses
-   while TTS plays; manual Stop speech and push-to-talk remain available. Design
-   and verify spoken stop/wait/enough/cancel/thank-you interruption while TTS is
-   playing, with echo protection and cooldown. Add mocked speech synthesis plus
-   recognition browser tests and hardware acceptance. Then proceed to opt-in
-   screen understanding (Phase 13). Do not bypass the current mic gate without
-   a reliable self-trigger policy.
+3. **Next coding task: Phase 13, opt-in screen understanding.** Capture a single
+   frame only after a user request, show a SCREEN ACTIVE indicator, discard the
+   image after analysis, and treat all screen text as untrusted input. Keep
+   camera-free startup and simulation working. Add a mock vision response and
+   browser tests for explicit activation, failure and no persistence. Then
+   proceed sequentially through the later phases.
 4. Follow MASTER_SPEC.md sequentially. No Gmail/Calendar/Telegram credentials are
    needed until those integrations and their approval boundaries exist.
 
@@ -88,7 +88,7 @@ above 80k characters visibly declare partial coverage. Reindex is startup/manual
 Deleted sources retain local tombstoned history; explicit purge belongs with the
 future forget workflow. Browser voice may be online and requires local hardware
 acceptance. Browser recognition supplies interim text and endpointing; dedicated
-VAD, spoken barge-in and a tested acoustic echo policy are not implemented. The video
+VAD and real microphone/acoustic echo acceptance remain pending. The video
 could not be retrieved; validation uses the supplied written specification.
 
 The exact final delivery SHA is recorded in the sibling `../FINAL_HANDOFF.md`

@@ -11,12 +11,16 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.addInitScript(()=>{
       // Test voice transcript transport without a microphone or an online STT service.
       window.SpeechRecognition=class {
-        constructor(){window.testRecognition=this}
-        start(){this.onstart?.()}
+        constructor(){window.testRecognition=this;(window.testRecognitions??=[]).push(this)}
+        start(){if(window.denyMicrophone){this.onerror?.({error:'not-allowed'});return}this.onstart?.()}
         stop(){this.onend?.()}
         interim(text){const row=[{transcript:text}];row.isFinal=false;this.onresult?.({results:[row]})}
-        deliver(text){const row=[{transcript:text}];row.isFinal=true;this.onresult?.({results:[row]});this.onend?.()}
+        deliver(text){const row=[{transcript:text,confidence:1}];row.isFinal=true;this.onresult?.({results:[row]});this.onend?.()}
       };
+      window.testUtterance=null;window.testCancelCount=0;
+      const synth=window.speechSynthesis;
+      synth.speak=function(u){window.testUtterance=u;setTimeout(()=>u.onstart?.(),0)};
+      synth.cancel=function(){window.testCancelCount++;const u=window.testUtterance;window.testUtterance=null;u?.onend?.()};
     });
     await page.goto(base+'/?probe=1');
     await page.waitForFunction(()=>document.title.startsWith('PROBE'),null,{timeout:60000});
@@ -99,10 +103,52 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.getByRole('button',{name:'Keep card'}).click();await page.waitForFunction(()=>document.querySelector('.research-card small').textContent.includes('PINNED'));
     await page.reload();await page.waitForFunction(()=>document.querySelector('.research-card small')?.textContent.includes('PINNED'));
     await page.getByRole('button',{name:'Dismiss'}).click();await page.waitForFunction(()=>!document.querySelector('.research-card'));
+    let speechAnswer='This sentence contains the word stop as echo bait.';
+    await page.route('**/api/jarvis/chat',async route=>{
+      const body=route.request().postDataJSON();
+      if(body.message==='fixture speech')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({answer:speechAnswer,
+        sources:[],node_ids:[],mode:'local',warning:null,action:'focus',state:'IDLE',events:[]})});
+      if(body.message.toLowerCase().startsWith('research '))return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({answer:research?.answer||'Research fixture',
+        sources:[],node_ids:[],mode:'research',warning:null,action:'focus',state:'IDLE',events:[],research_card:research})});
+      return route.continue();
+    });
+    await page.locator('#j-wake').check();await page.waitForTimeout(450);
+    await page.locator('#j-speak').check();
+    async function requestSpeech(){await page.locator('#j-input').fill('fixture speech');await page.locator('#j-send').click();
+      try{await page.waitForFunction(()=>document.querySelector('#j-status').textContent.includes('SPEAKING')&&window.testUtterance,null,{timeout:6000})}
+      catch(e){console.log('VOICE DEBUG',await page.locator('#j-status').innerText(),await page.locator('#j-log').innerText());throw e}}
+    await requestSpeech();await page.waitForTimeout(950);
+    const wakeCount=async()=>page.evaluate(async()=>{const s=await fetch('/api/jarvis/state?session_id='+encodeURIComponent(sessionStorage.getItem('jarvis_session'))).then(r=>r.json());return s.events.filter(e=>e.state==='WAKE_DETECTED').length});
+    const wakeBeforeSpeech=await wakeCount();
+    await page.evaluate(()=>window.testRecognition.deliver('stop'));
+    await page.waitForTimeout(300);assert.ok(await page.evaluate(()=>!!window.testUtterance),'Echoed speech must not interrupt playback');
+    assert.equal(await wakeCount(),wakeBeforeSpeech,'Wake listener must stay suppressed during TTS');
+    const recBeforeResume=await page.evaluate(()=>window.testRecognitions.length);
+    await page.evaluate(()=>window.testRecognition.deliver('cancel'));
+    await page.waitForFunction(()=>document.querySelector('#j-status').textContent==='IDLE'&&!window.testUtterance);
+    await page.waitForFunction(n=>window.testRecognitions.length>n,recBeforeResume,{timeout:4000});
+    let voiceState=await page.evaluate(async()=>fetch('/api/jarvis/state?session_id='+encodeURIComponent(sessionStorage.getItem('jarvis_session'))).then(r=>r.json()));
+    assert.ok(voiceState.events.some(e=>e.state==='INTERRUPTED'));
+    speechAnswer='A calm reply with no interruption words.';
+    await requestSpeech();await page.waitForTimeout(950);await page.evaluate(()=>window.testRecognition.deliver('stop'));
+    await page.waitForFunction(()=>!window.testUtterance);
+    await requestSpeech();await page.waitForTimeout(950);await page.evaluate(()=>window.testRecognition.deliver('that is enough'));
+    await page.waitForFunction(()=>!window.testUtterance);
+    await requestSpeech();await page.locator('#j-speak').uncheck();
+    await page.waitForFunction(()=>!window.testUtterance);
+    await page.locator('#j-wake').uncheck();
+    const releasedCount=await page.evaluate(()=>window.testRecognitions.length);
+    await page.waitForTimeout(500);assert.equal(await page.evaluate(()=>window.testRecognitions.length),releasedCount,'Wake off releases recognition');
+    const noVoice=await browser.newPage();await noVoice.addInitScript(()=>{delete window.SpeechRecognition;delete window.webkitSpeechRecognition});
+    await noVoice.goto(base+'/');await noVoice.waitForFunction(()=>!!window.jarvisUI);
+    assert.equal(await noVoice.locator('#j-mic').isDisabled(),true);assert.equal(await noVoice.locator('#j-wake').isDisabled(),true);await noVoice.close();
+    const denied=await browser.newPage();await denied.addInitScript(()=>{window.SpeechRecognition=class{start(){this.onerror?.({error:'not-allowed'})}stop(){this.onend?.()}}});
+    await denied.goto(base+'/');await denied.waitForFunction(()=>!!window.jarvisUI);await denied.locator('#j-wake').check();
+    await denied.waitForFunction(()=>!document.querySelector('#j-wake').checked&&document.querySelector('#j-log').textContent.includes('not-allowed'));await denied.close();
     fs.mkdirSync('test-results',{recursive:true});await page.screenshot({path:'test-results/foundation-preview.png'});
     await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/mobile-preview.png'});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     assert.deepEqual(errors,[]);
-    console.log('PASS: probe+props, simulation, no-camera, search, graph focus, source, summary, follow-ups, expand/collapse, shortcuts, mocked voice transcript, reindex, narrow layout; zero page errors.');
+    console.log('PASS: probe+props, simulation, no-camera, research, interim/final voice, opt-in wake, spoken cancel/stop, echo and wake suppression, resume, mute, denied/unavailable speech, layout; zero page errors.');
   }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
