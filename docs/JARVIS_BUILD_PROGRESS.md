@@ -17,3 +17,5 @@ contain its own hash). Resolve latest checkpoint with `git log -1`.
 Phases 1–2 backend: modular runtime, per-tab expiring context, explicit state machine, bounded same-origin JSON APIs and GET /api/state implemented. Three core tests pass; frontend state reflection remains for Phase 7. Next: SQLite schema and ingestion.
 
 Phases 3–4: SQLite provenance schema, incremental UTF-8/PDF reader, offset chunks, fingerprints, tombstones, explicit graph evidence. Eight tests pass after fixing Windows newline preservation. PDF package/live fixture validation pending. Commit fc74313 is the runtime checkpoint. Next: hybrid retrieval and optional embeddings.
+
+Phases 5–6/9 backend: hybrid retrieval with opt-in OpenAI vectors, fuzzy filename search, recency, content deduplication, official Responses adapter, strict citation validation, local extractive fallback and selected-source follow-ups. 14 unit tests green. Live cloud calls not run (no credentials). Phase 3–4 checkpoint: f2aa1f8. Next: HOLO selection bridge, galaxy UI and browser acceptance tests.
