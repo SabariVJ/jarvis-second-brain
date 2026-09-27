@@ -74,7 +74,7 @@ physical microphone acceptance remain pending. This is not complete video parity
   button and natural-language invocation, and no automatic startup request.
   **Zero page errors.**
 - Windows launch.cmd successfully started server.py at http://localhost:4900 for Gmail
-  http://localhost:4901 for Calendar and http://localhost:4902 for the briefing.
+  http://localhost:4901 for Calendar and http://localhost:4903 for the briefing.
 - Sample index: eight documents/chunks/entities/edges; no extraction errors.
 - No key/live API call, microphone recording, webcam test or external message.
 - vendor/, props/ and sample-notes/ unchanged. Private runtime data remain ignored.
