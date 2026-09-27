@@ -83,7 +83,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
       window.SpeechRecognition=class {
         constructor(){window.testRecognition=this;(window.testRecognitions??=[]).push(this)}
         start(){if(window.denyMicrophone){this.onerror?.({error:'not-allowed'});return}this.onstart?.()}
-        stop(){this.onend?.()}
+        stop(){this.stopCount=(this.stopCount||0)+1;this.onend?.()}
         interim(text){const row=[{transcript:text}];row.isFinal=false;this.onresult?.({results:[row]})}
         deliver(text){const row=[{transcript:text,confidence:1}];row.isFinal=true;this.onresult?.({results:[row]});this.onend?.()}
       };
@@ -400,6 +400,12 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.locator('#j-wake').uncheck();
     const releasedCount=await page.evaluate(()=>window.testRecognitions.length);
     await page.waitForTimeout(500);assert.equal(await page.evaluate(()=>window.testRecognitions.length),releasedCount,'Wake off releases recognition');
+    await page.locator('#j-mic').click();await page.waitForFunction(()=>document.querySelector('#j-status').textContent.includes('MIC ACTIVE'));
+    const beforeMuteStop=await page.evaluate(()=>window.testRecognition.stopCount||0);await page.locator('#j-mute').click();
+    await page.waitForFunction(()=>document.querySelector('#j-status').textContent==='GLOBAL MUTE · ON');
+    assert.ok(await page.evaluate(()=>window.testRecognition.stopCount)>beforeMuteStop,'Global mute must stop active recognition');
+    assert.equal(await page.locator('#j-mic').isDisabled(),true);assert.equal(await page.locator('#j-wake').isDisabled(),true);
+    await page.locator('#j-mute').click();assert.equal(await page.locator('#j-mic').isDisabled(),false);
     const noVoice=await browser.newPage();await noVoice.addInitScript(()=>{delete window.SpeechRecognition;delete window.webkitSpeechRecognition;
       if(navigator.mediaDevices)navigator.mediaDevices.getUserMedia=undefined});
     await noVoice.goto(base+'/');await noVoice.waitForFunction(()=>!!window.jarvisUI);
@@ -412,6 +418,6 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/mobile-preview.png'});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     assert.deepEqual(errors,[]);
-    console.log('PASS: probe+props, simulation, no-camera, research, voice interrupt/wake safety, screen/camera capture-discard, Focus Lock start/pause/resume/stop by controls and voice, permissions, layout; zero page errors.');
+    console.log('PASS: probe+props, simulation, no-camera, saved cards/settings, approval-gated Windows/Gmail/Calendar actions, voice interruption/wake/global mute, transient screen/camera frames, Focus Lock, responsive layout; zero page errors.');
   }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

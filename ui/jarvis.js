@@ -17,7 +17,7 @@ async function boot(){
       <div id="j-selection" class="sub">Select a note, or search your memory.</div>
       <div id="j-log" role="log" aria-live="polite"></div>
       <form id="j-form"><label class="sub" for="j-input">Ask Jarvis</label><input id="j-input" placeholder="Find my notes about…" maxlength="4000" autocomplete="off"><div class="j-row" style="margin-top:8px"><button id="j-send">Send</button><button type="button" id="j-summary">Summarize selected</button></div></form>
-      <div class="j-row"><button id="j-mic">Use browser voice</button><button id="j-stop">Stop speech</button><label class="sub"><input type="checkbox" id="j-speak"> Read aloud</label><label class="sub"><input type="checkbox" id="j-wake"> Wake mode</label></div>
+      <div class="j-row"><button id="j-mic">Use browser voice</button><button id="j-stop">Stop speech</button><button id="j-mute" type="button" aria-pressed="false">GLOBAL MUTE · OFF</button><label class="sub"><input type="checkbox" id="j-speak"> Read aloud</label><label class="sub"><input type="checkbox" id="j-wake"> Wake mode</label></div>
       <div class="sub" id="j-voice-note">Voice is opt-in and may use your browser’s online speech service.</div>
       <div class="sub" id="j-transcript" role="status" aria-live="polite"></div>
       <section id="personal-memory-card" aria-label="Personal long-term memory">
@@ -115,6 +115,7 @@ async function boot(){
     </section>`);
   const $=id=>document.getElementById(id);
   let sid,selected=null,busy=false,galaxy=null,speechToken=0,lastFocus=null,speaking=false,restoredContext=null;
+  let globalMuted=false,applyGlobalMute=async()=>{};try{globalMuted=localStorage.getItem('jarvis_global_mute')==='1'}catch(_){}
   let resumeWake=()=>{}, speechRecognizer=null, speechEndTimer=null, interruptCooldownUntil=0, spokenText='';
   const status=value=>{$('j-status').textContent=value;$('jarvis-panel').dataset.state=value;};
   async function api(path,data){const r=await fetch(path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -409,7 +410,7 @@ async function boot(){
   $('j-stop').onclick=()=>stopSpeech().catch(showError);
   function normalizeSpeech(text){return text.toLocaleLowerCase().replace(/[^\p{L}\p{N} ]/gu,' ').replace(/\s+/g,' ').trim()}
   function isInterruption(text){return /^(stop|wait|enough|that s enough|thats enough|that is enough|cancel|quiet|thank you|thanks|that s good|thats good|that is good)$/.test(normalizeSpeech(text))}
-  function speak(text){if(!$('j-speak').checked||!window.speechSynthesis||typeof SpeechSynthesisUtterance==='undefined')return;
+  function speak(text){if(globalMuted||!$('j-speak').checked||!window.speechSynthesis||typeof SpeechSynthesisUtterance==='undefined')return;
     const token=++speechToken;spokenText=text;interruptCooldownUntil=Date.now()+850;
     const utterance=new SpeechSynthesisUtterance(text);
     utterance.onstart=()=>{if(token!==speechToken)return;speaking=true;status('SPEAKING · INTERRUPT READY');resumeWake();
@@ -608,9 +609,9 @@ async function boot(){
   if(!Recognition){$('j-mic').disabled=true;$('j-wake').disabled=true;$('j-voice-note').textContent='Speech recognition unavailable in this browser. Text mode is ready.'}
   else {let recognition=null,voiceProcessing=false,voiceStarting=false,wakeRecognition=null,wakeTimer=null,wakeArmedUntil=0;
     function stopWake(){clearTimeout(wakeTimer);wakeTimer=null;if(wakeRecognition){const current=wakeRecognition;wakeRecognition=null;current.stop()}}
-    function scheduleWake(){clearTimeout(wakeTimer);if(!$('j-wake').checked||speaking||busy||recognition||voiceProcessing)return;
+    function scheduleWake(){clearTimeout(wakeTimer);if(globalMuted||!$('j-wake').checked||speaking||busy||recognition||voiceProcessing)return;
       wakeTimer=setTimeout(()=>{wakeTimer=null;startWake()},Math.max(350,interruptCooldownUntil-Date.now()))}
-    function startWake(){if(!$('j-wake').checked||speaking||busy||recognition||wakeRecognition)return;
+    function startWake(){if(globalMuted||!$('j-wake').checked||speaking||busy||recognition||wakeRecognition)return;
       const current=new Recognition();wakeRecognition=current;current.lang=navigator.language||'en-US';current.continuous=false;current.interimResults=false;
       current.onresult=e=>{const final=Array.from(e.results||[]).find(r=>r.isFinal);if(!final||wakeRecognition!==current)return;
         const heard=(final[0]?.transcript||'').trim();const match=heard.match(/\bjarvis\b[\s,.:;!?]*(.*)$/i);
@@ -635,7 +636,7 @@ async function boot(){
         scheduleWake()}else{stopWake();wakeArmedUntil=0;$('j-voice-note').textContent='Voice is opt-in and may use your browser’s online speech service.';
         try{await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})}catch(_){}}};
     const resetMic=()=>{$('j-mic').textContent='Use browser voice';$('j-mic').disabled=false};
-    $('j-mic').onclick=async()=>{if(busy||voiceProcessing||voiceStarting)return;
+    $('j-mic').onclick=async()=>{if(globalMuted||busy||voiceProcessing||voiceStarting)return;
       if(recognition){const current=recognition;recognition=null;current.stop();resetMic();$('j-transcript').textContent='';
         await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'});status('IDLE');return}
       stopWake();wakeArmedUntil=0;voiceStarting=true;$('j-mic').disabled=true;
@@ -660,7 +661,16 @@ async function boot(){
         await api('/api/jarvis/voice-state',{session_id:sid,state:'LISTENING'});current.start();
       }catch(e){recognition=null;voiceStarting=false;resetMic();$('j-transcript').textContent='';
         api('/api/jarvis/voice-state',{session_id:sid,state:'ERROR'}).then(()=>api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'})).catch(()=>{});showError(e)}};
+    applyGlobalMute=async()=>{if(globalMuted){stopWake();wakeArmedUntil=0;if(recognition){const current=recognition;recognition=null;try{current.stop()}catch(_){}}
+        voiceProcessing=false;voiceStarting=false;$('j-wake').checked=false;$('j-mic').disabled=true;$('j-wake').disabled=true;$('j-speak').checked=false;
+        await stopSpeech();api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'}).catch(()=>{});status('GLOBAL MUTE · ON')}
+      else{$('j-mic').disabled=false;$('j-wake').disabled=false;status('IDLE')}};
   }
+  $('j-mute').setAttribute('aria-pressed',String(globalMuted));$('j-mute').textContent='GLOBAL MUTE · '+(globalMuted?'ON':'OFF');
+  if(globalMuted){$('j-speak').checked=false;$('j-mic').disabled=true;$('j-wake').checked=false;$('j-wake').disabled=true;$('j-mute').classList.add('muted')}
+  $('j-mute').onclick=async()=>{globalMuted=!globalMuted;try{localStorage.setItem('jarvis_global_mute',globalMuted?'1':'0')}catch(_){}
+    $('j-mute').textContent='GLOBAL MUTE · '+(globalMuted?'ON':'OFF');$('j-mute').setAttribute('aria-pressed',String(globalMuted));
+    $('j-mute').classList.toggle('muted',globalMuted);await applyGlobalMute()};
   window.jarvisUI={summarize:async id=>{try{await select(id);await ask('Summarize this')}catch(e){showError(e)}},select,openSource,ask,
     focus:ids=>{galaxy?.focus(ids)},get selected(){return selected}};
   entry('Ready. Search your notes, select a source, then ask “summarize this” or “show related notes”.');

@@ -18,4 +18,12 @@ def local_request(headers, port, write=False):
     return True
 
 def redact(text):
-    return re.sub(r'(?i)(sk-[a-z0-9_-]+|bearer\s+\S+)', '[REDACTED]', str(text))
+    value=str(text)
+    patterns=(
+        r'(?i)\b(?:sk-[a-z0-9_-]+|AIza[0-9A-Za-z_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,})\b',
+        r'(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*',
+        r'\bya29\.[A-Za-z0-9._-]{20,}',
+        r'\b\d{6,}:[A-Za-z0-9_-]{20,}',
+    )
+    for pattern in patterns:value=re.sub(pattern,'[REDACTED]',value)
+    return value

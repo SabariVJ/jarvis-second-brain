@@ -1,11 +1,11 @@
-# JARVIS build progress — continuation through Phase 28, 2026-09-28
+# JARVIS build progress — continuation through Phase 29, 2026-09-28
 
 Branch: `jarvis-second-brain`.
 Phase 22–31 run start SHA: `169d50e08a14823622d2a586035eb688054944ef`.
 Recovered checkpoint before this continuation: `a73081a40c8cdffec16f732a635d729746b90a97`.
 The original archive on D: is unchanged.
 
-Phases 0–27 are preserved and complete. Live account and physical device
+Phases 0–28 are preserved and complete. Live account and physical device
 acceptance remain pending. This is not a full video-parity claim.
 
 ## Phase status, files, validation and remaining work
@@ -41,6 +41,7 @@ acceptance remain pending. This is not a full video-parity claim.
 | 26 Integrations / Settings Panel | Complete foundation | core/runtime.py, ui/jarvis.js/css, docs/SETUP.md | 98 Python tests; 12 safe status rows and DB/index diagnostics; browser status panel; no credential exposure or hardware prompt; probe 26/26 and camera-free launch | SHA in `../FINAL_HANDOFF.md` | Live provider/device diagnostics require local setup |
 | 27 Safe Windows Computer Control | Complete safe adapter; live Windows acceptance pending | windows.py, core/runtime.py, core/orchestrator.py, tools.py | 103 Python tests; allowlisted app/file/public URL, path traversal and script guard, foreground mocks, volume mock, typed approvals and natural-language browser flow; probe 26/26; camera-free launch | SHA in `../FINAL_HANDOFF.md` | Physical Windows active-window/audio test; screenshot remains one-shot browser chooser |
 | 28 Offline / Degraded Mode | Complete | tests/test_degraded_mode.py, core/runtime.py, docs/SETUP.md | 105 Python tests; network-blocked startup, Astra/embedding/vision/Gmail/Calendar/Telegram disabled, local note search + graph and clear status; camera-free browser and launch validation | SHA in `../FINAL_HANDOFF.md` | None |
+| 29 Privacy Hardening | Complete foundation | security.py, ui/jarvis.js/css, Telegram, vision, Context | 106 Python tests; secret formats redacted, global mute stops mocked active recognition and blocks voice/wake; transient audio/image flows and visible indicators reviewed; browser acceptance zero page errors, probe 26/26 | SHA in `../FINAL_HANDOFF.md` | Physical microphone release test remains pending |
 
 ## Phase 19 continuation checkpoint
 
@@ -117,9 +118,9 @@ No Telegram token or provider key was supplied.
 
 ## Exact continuation point
 
-Phases 0–28 are complete. Continue at Phase 29 — Privacy Hardening,
+Phases 0–29 are complete. Continue at Phase 30 — Automation Engine,
 using the Phase 27 commit recorded in the sibling `../FINAL_HANDOFF.md` as the
-checkpoint. Preserve Phases 0–27 and do not restart or redesign them.
+checkpoint. Preserve Phases 0–28 and do not restart or redesign them.
 
 The only pending checks require the user's own accounts or physical hardware:
 Telegram bot token and user allowlist; optional OpenAI key for voice-note

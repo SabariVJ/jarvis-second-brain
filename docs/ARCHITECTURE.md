@@ -280,6 +280,20 @@ network access blocked, indexed note search, the knowledge graph, SQLite
 memory, simulation and camera-free text UI remain available. Gmail/Calendar
 adapters fail before calling their transports when OAuth is absent.
 
+## Phase 29: Privacy controls
+
+Raw browser audio is processed only by the browser speech service and is not
+stored by Jarvis. Telegram voice-note bytes are bounded and held in memory for
+transcription, then discarded. Screen and camera frames are sent only after an
+explicit user gesture, held transiently, and cleared after the request; no
+image/audio file is written. Conversation and turn context live in bounded
+server memory and are not persisted to SQLite by default. Research cards stay
+temporary until explicit save. The page provides a persistent local-storage
+**Global Mute** preference: activating it stops active recognition and speech,
+disarms wake mode, disables microphone controls and blocks later speech output.
+Status labels identify active mic, wake, screen and camera capture. Secret
+redaction covers common OpenAI, Google, GitHub, bearer and Telegram token forms.
+
 ## Phase 15: Focus Lock
 
 Focus Lock starts only after the user presses Start or asks for a focus session.

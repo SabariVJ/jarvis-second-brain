@@ -275,3 +275,10 @@ The settings panel marks unavailable services as **ACTION REQUIRED** or
 **DISABLED**. Local indexed-note search, graph browsing and text chat keep
 working in that mode. Remote features run only when requested; Telegram polling
 is opt-in and can be stopped from the local panel.
+
+**Global Mute** turns off browser voice input and output immediately and stays
+enabled in that browser until you turn it off. Jarvis does not save conversation
+transcripts, raw audio, screen captures or camera frames. Telegram voice notes
+are transient in-memory inputs. Research cards persist only when you choose
+Save. Mic, wake, screen and camera indicators show when those features are
+active.
