@@ -234,3 +234,9 @@ source when one is selected.
 Every generated PDF card offers preview/open, save a copy, pin and dismiss.
 Telegram sharing is off by default and requires local approval plus in-chat
 confirmation. No invoice, report, summary or letter is sent automatically.
+
+H.O.L.O interaction context (Phase 22) follows the selected note, graph node,
+research or integration card while the tab session remains active. The small
+context indicator shows the current item. Context expires after 30 minutes and
+is not saved as personal memory; note labels and paths are resolved locally by
+the server. This context describes what is selected and does not approve actions.

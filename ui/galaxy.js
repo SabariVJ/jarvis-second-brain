@@ -1,8 +1,8 @@
 import * as T from '/vendor/three.module.js';
 
 export class Galaxy {
-  constructor(element,onSelect){
-    this.el=element;this.onSelect=onSelect;this.data={nodes:[],edges:[]};this.selected=null;
+  constructor(element,onSelect,onContext=()=>{}){
+    this.el=element;this.onSelect=onSelect;this.onContext=onContext;this.data={nodes:[],edges:[]};this.selected=null;
     this.visible=new Set();this.highlight=new Set();this.meshes=new Map();
     this.canvas=element.querySelector('canvas');this.scene=new T.Scene();
     this.renderer=new T.WebGLRenderer({canvas:this.canvas,alpha:true,antialias:true});
@@ -25,8 +25,10 @@ export class Galaxy {
       else if(e.key==='ArrowUp')this.pitch=Math.min(1.3,this.pitch+.12);else if(e.key==='ArrowDown')this.pitch=Math.max(-1.3,this.pitch-.12);
       else if(e.key==='+'||e.key==='=')this.distance=Math.max(90,this.distance-40);else if(e.key==='-')this.distance=Math.min(1800,this.distance+40);else return;e.preventDefault()});
     element.querySelector('[data-act=expand]').onclick=()=>this.expand();
-    element.querySelector('[data-act=collapse]').onclick=()=>{if(this.selected){this.visible=new Set([this.selected]);this.renderVisibility()}};
-    element.querySelector('[data-act=all]').onclick=()=>{this.visible=new Set(this.data.nodes.map(n=>n.id));this.target.set(0,0,0);this.distance=650;this.renderVisibility()};
+    element.querySelector('[data-act=collapse]').onclick=()=>{if(this.selected){this.visible=new Set([this.selected]);this.renderVisibility();
+      this.onContext({event:'NODE_COLLAPSED',object_type:'NODE',object_id:this.selected,metadata:{count:this.visible.size}})}};
+    element.querySelector('[data-act=all]').onclick=()=>{this.visible=new Set(this.data.nodes.map(n=>n.id));this.target.set(0,0,0);this.distance=650;this.renderVisibility();
+      this.onContext({event:'GRAPH_FOCUSED',object_type:'GRAPH',object_id:'graph',metadata:{count:this.visible.size}})};
     this.animate();
   }
   setData(data){
@@ -55,15 +57,18 @@ export class Galaxy {
   select(id){
     const node=this.data.nodes.find(n=>n.id===id);if(!node)return;
     this.selected=id;this.target.copy(this.meshes.get(id).position);this.distance=340;this.renderVisibility();
+    this.onSelect(id,false,node);
     const pane=this.el.querySelector('#galaxy-inspect');pane.replaceChildren();
     const title=document.createElement('b');title.textContent=node.label+' · '+node.kind;pane.append(title);
-    if(node.kind==='DOCUMENT'){const b=document.createElement('button');b.textContent='Open source';b.onclick=()=>this.onSelect(id,true);pane.append(document.createElement('br'),b);this.onSelect(id,false)}
+    if(node.kind==='DOCUMENT'){const b=document.createElement('button');b.textContent='Open source';b.onclick=()=>this.onSelect(id,true,node);pane.append(document.createElement('br'),b)}
     for(const e of this.data.edges.filter(e=>e.subject===id||e.object===id)){
       const b=document.createElement('button');b.textContent=`${e.predicate} · evidence: ${e.evidence}`;
       b.onclick=()=>this.onSelect(e.subject,true);pane.append(document.createElement('br'),b)}
   }
-  expand(){if(!this.selected)return;for(const e of this.data.edges)if(e.subject===this.selected||e.object===this.selected){this.visible.add(e.subject);this.visible.add(e.object)}this.renderVisibility()}
-  focus(ids){this.highlight=new Set(ids);for(const id of ids)this.visible.add(id);const m=ids.map(id=>this.meshes.get(id)).filter(Boolean);if(m.length){this.target.set(0,0,0);for(const p of m)this.target.add(p.position);this.target.divideScalar(m.length);this.distance=480}this.renderVisibility()}
+  expand(){if(!this.selected)return;for(const e of this.data.edges)if(e.subject===this.selected||e.object===this.selected){this.visible.add(e.subject);this.visible.add(e.object)}this.renderVisibility();
+    this.onContext({event:'NODE_EXPANDED',object_type:'NODE',object_id:this.selected,metadata:{count:this.visible.size}})}
+  focus(ids){this.highlight=new Set(ids);for(const id of ids)this.visible.add(id);const m=ids.map(id=>this.meshes.get(id)).filter(Boolean);if(m.length){this.target.set(0,0,0);for(const p of m)this.target.add(p.position);this.target.divideScalar(m.length);this.distance=480}this.renderVisibility();
+    this.onContext({event:'GRAPH_FOCUSED',object_type:'GRAPH',object_id:'graph',metadata:{count:ids.length}})}
   animate(){requestAnimationFrame(()=>this.animate());if(this.el.hidden)return;
     const w=this.el.clientWidth,h=this.el.clientHeight;if(!w||!h)return;
     this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.aim.lerp(this.target,.06);

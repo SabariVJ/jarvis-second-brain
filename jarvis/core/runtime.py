@@ -54,6 +54,65 @@ class Runtime:
                 'microphone_required': False, 'mode': 'configured' if self.brain.enabled else 'local',
                 'model':self.brain.model, 'embeddings_enabled':self.embeddings.enabled}
 
+    def _record_context(self, context, data):
+        events = {
+            'NOTE_SELECTED':'NOTE','NOTE_OPENED':'NOTE','NOTE_MOVED':'NOTE','NOTE_CRUSHED':'NOTE',
+            'NODE_SELECTED':'NODE','NODE_EXPANDED':'NODE','NODE_COLLAPSED':'NODE',
+            'CARD_SELECTED':{'DOCUMENT','RESEARCH','MEMORY','EMAIL','CALENDAR','INVOICE','FOCUS','TELEGRAM','SYSTEM','APPROVAL'},
+            'CARD_OPENED':{'DOCUMENT','RESEARCH','MEMORY','EMAIL','CALENDAR','INVOICE','FOCUS','TELEGRAM','SYSTEM','APPROVAL'},
+            'RESEARCH_SELECTED':'RESEARCH','EMAIL_SELECTED':'EMAIL','CALENDAR_SELECTED':'CALENDAR',
+            'INVOICE_SELECTED':'INVOICE','MEMORY_SELECTED':'MEMORY','FOCUS_SELECTED':'FOCUS',
+            'GRAPH_FOCUSED':'GRAPH',
+        }
+        event=data.get('event')
+        if event is None and 'document_id' in data:  # Phase 0–21 API compatibility.
+            event='NOTE_SELECTED';data={**data,'object_type':'NOTE','object_id':data.get('document_id')}
+        if event not in events:raise ValueError('Unsupported H.O.L.O context event')
+        object_type=data.get('object_type');allowed=events[event]
+        if object_type not in (allowed if isinstance(allowed,set) else {allowed}):raise ValueError('Context event and object type do not match')
+        object_id=data.get('object_id')
+        if event=='GRAPH_FOCUSED' and object_id is None:object_id='graph'
+        if not isinstance(object_id,str) or not object_id or len(object_id)>160 or any(ord(c)<32 for c in object_id):
+            raise ValueError('Context object ID is invalid')
+        metadata=data.get('metadata',{})
+        if not isinstance(metadata,dict) or len(metadata)>8:raise ValueError('Context metadata must be a small object')
+        source_reference=''
+        if object_type=='NOTE':
+            note=self.database.document(object_id)
+            source_reference=note.get('relative_path','')
+            metadata={'title':note.get('title',''), 'kind':'NOTE'}
+        elif object_type=='NODE':
+            node=next((n for n in self.graph.snapshot()['nodes'] if n['id']==object_id),None)
+            if not node:raise ValueError('Graph node is unavailable')
+            metadata={'title':node.get('label',''),'kind':node.get('kind','')}
+            source_reference=node.get('path','')
+        elif object_type in ('DOCUMENT','INVOICE'):
+            card=self.documents._card(object_id)
+            if card.get('status')!='active':raise ValueError('Generated document is unavailable')
+            if object_type=='INVOICE' and card.get('kind')!='invoice':raise ValueError('Selected item is not an invoice')
+            if object_type=='DOCUMENT' and card.get('kind')=='invoice':raise ValueError('Select this item as an invoice')
+            metadata={'title':card.get('title',''),'kind':card.get('kind','')}
+            source_reference=object_id
+        elif object_type=='RESEARCH':
+            card=context.research_cards.get(object_id)
+            if not card:raise ValueError('Research card is unavailable or expired')
+            metadata={'title':card.get('title',''),'kind':'RESEARCH'}
+        elif object_type=='MEMORY':
+            memory=self.long_term_memory.inspect(object_id)
+            metadata={'title':memory.get('category',''),'kind':'PERSONAL MEMORY'}
+            source_reference=memory.get('source_reference','')
+        elif object_type=='FOCUS':
+            focus=self.focus.status()
+            if object_id!='active' or focus.get('state') not in ('ACTIVE','PAUSED'):
+                raise ValueError('There is no active focus session')
+            metadata={'title':focus.get('goal',''),'kind':'FOCUS','status':focus.get('state','')}
+        else:
+            # Provider identifiers and labels are display context only. They are
+            # bounded and never confer permission to execute an action.
+            source_reference=data.get('source_reference','')
+        item=context.record_context(event,object_type,object_id,source_reference,metadata)
+        return {'ok':True,'selected_id':context.selection(),'current_context':item}
+
     def dispatch(self, method, path, data, query):
         if method == 'GET' and path == '/api/health':
             return {**self.health(),'screen_vision_enabled':self.vision.enabled}
@@ -134,8 +193,8 @@ class Runtime:
         if method == 'GET' and path == '/api/jarvis/state':
             sid = query.get('session_id', [''])[0]
             if not sid: raise ValueError('Session required')
-            _, _, state = self.sessions.get(sid)
-            return state.snapshot()
+            _, context, state = self.sessions.get(sid)
+            return {**state.snapshot(),**context.context_snapshot()}
         if method == 'GET' and path == '/api/research/cards':
             sid = query.get('session_id',[''])[0]
             if not sid: raise ValueError('Session required')
@@ -169,10 +228,10 @@ class Runtime:
                 return self.orchestrator.chat(data.get('message'),context,state,data.get('selected_id'),bool(data.get('spoken')))
             if path.endswith('/context'):
                 if context.lock.locked(): raise ValueError('Wait for the current response before selecting another source')
-                doc_id = data.get('document_id')
-                if doc_id: self.database.document(doc_id)
-                context.select(doc_id)
-                return {'ok':True,'selected_id':doc_id}
+                if data.get('event')=='CONTEXT_CLEAR':
+                    context.current_context=None;context.select(None)
+                    return {'ok':True,'selected_id':None,'current_context':None}
+                return self._record_context(context,data)
             target = data.get('state')
             if target not in ('WAKE_DETECTED','LISTENING','TRANSCRIBING','SPEAKING','IDLE','ERROR','INTERRUPTED'):
                 raise ValueError('Invalid client voice state')

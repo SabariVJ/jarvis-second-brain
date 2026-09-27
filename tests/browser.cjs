@@ -169,6 +169,8 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     assert.equal(await page.locator('#galaxy').isVisible(),true);
     await page.locator('.j-sources button').first().click();
     await page.waitForFunction(()=>!document.querySelector('#source-reader').hidden);
+    const noteContext=await page.evaluate(async()=>fetch('/api/jarvis/state?session_id='+encodeURIComponent(sessionStorage.getItem('jarvis_session'))).then(r=>r.json()));
+    assert.equal(noteContext.current_context.event,'NOTE_OPENED');assert.equal(noteContext.current_context.object_type,'NOTE');
     assert.match(await page.locator('#source-reader pre').innerText(),/Every note a star/);
     await page.locator('#source-summary').click();
     await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('Local extract'));
@@ -178,6 +180,8 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.locator('#source-close').click();
     await page.locator('#galaxy-list button').first().click();
     await page.locator('[data-act=collapse]').click();assert.equal(await page.locator('#galaxy-list button').count(),1);
+    const graphContext=await page.evaluate(async()=>fetch('/api/jarvis/state?session_id='+encodeURIComponent(sessionStorage.getItem('jarvis_session'))).then(r=>r.json()));
+    assert.equal(graphContext.current_context.event,'NODE_COLLAPSED');
     await page.locator('[data-act=expand]').click();assert.ok(await page.locator('#galaxy-list button').count()>1);
     await page.locator('[data-act=all]').click();
     // Typing HOLO shortcut letters must not toggle features or reset cards.

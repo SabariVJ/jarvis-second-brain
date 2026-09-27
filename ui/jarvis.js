@@ -104,15 +104,22 @@ async function boot(){
       <div class="j-row"><button id="source-close">Close source</button><button id="source-summary">Summarize this</button></div><h2></h2><small></small><pre></pre>
     </section>`);
   const $=id=>document.getElementById(id);
-  let sid,selected=null,busy=false,galaxy=null,speechToken=0,lastFocus=null,speaking=false;
+  let sid,selected=null,busy=false,galaxy=null,speechToken=0,lastFocus=null,speaking=false,restoredContext=null;
   let resumeWake=()=>{}, speechRecognizer=null, speechEndTimer=null, interruptCooldownUntil=0, spokenText='';
   const status=value=>{$('j-status').textContent=value;$('jarvis-panel').dataset.state=value;};
   async function api(path,data){const r=await fetch(path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     const result=await r.json();if(!r.ok)throw new Error(result.error||'Request failed');return result}
+  async function recordContext(event,object_type,object_id,metadata={}){
+    const result=await api('/api/jarvis/context',{session_id:sid,event,object_type,object_id:String(object_id),metadata});
+    const current=result.current_context;if(current){const label=current.metadata.title||current.object_id;$('j-selection').textContent=`Context: ${current.object_type} · ${label}`}
+    return result.current_context;
+  }
   sid=sessionStorage.getItem('jarvis_session');
-  if(sid){try{await api('/api/jarvis/state?session_id='+encodeURIComponent(sid))}catch(_){sid=null}}
+  if(sid){try{restoredContext=(await api('/api/jarvis/state?session_id='+encodeURIComponent(sid))).current_context||null}catch(_){sid=null;restoredContext=null}}
   if(!sid)sid=(await api('/api/jarvis/session',{})).session_id;
   sessionStorage.setItem('jarvis_session',sid);
+  if(restoredContext){const label=restoredContext.metadata?.title||restoredContext.object_id;
+    $('j-selection').textContent=`Context: ${restoredContext.object_type} · ${label}`}
   const health=await api('/api/health');
   status(health.mode==='local'?'IDLE · LOCAL MODE':'IDLE · ASTRA CONFIGURED');
   $('j-embed').hidden=!health.embeddings_enabled;
@@ -128,6 +135,8 @@ async function boot(){
     if(!el){el=document.createElement('article');el.className='research-card';el.dataset.id=card.id;$('research-cards').prepend(el)}
     el.replaceChildren();
     const heading=document.createElement('h3');heading.textContent='RESEARCH · '+card.query;
+    heading.tabIndex=0;heading.setAttribute('role','button');heading.setAttribute('aria-label','Select research card');
+    heading.onclick=()=>recordContext('RESEARCH_SELECTED','RESEARCH',card.id).catch(showError);
     const badge=document.createElement('small');badge.textContent=card.status.toUpperCase()+' · '+new Date(card.researched_at*1000).toLocaleString();
     const summary=document.createElement('p');summary.textContent=card.answer.slice(0,240)+(card.answer.length>240?'…':'');
     const detail=document.createElement('div');detail.className='research-detail';detail.hidden=true;
@@ -137,7 +146,8 @@ async function boot(){
       sources.append(link);if(s.snippet){const note=document.createElement('small');note.textContent='Cited answer excerpt: '+s.snippet;sources.append(note)}}
     detail.append(sources);
     const controls=document.createElement('div');controls.className='j-row';
-    const expand=document.createElement('button');expand.textContent='Expand';expand.onclick=()=>{detail.hidden=!detail.hidden;summary.hidden=!detail.hidden;expand.textContent=detail.hidden?'Expand':'Collapse'};
+    const expand=document.createElement('button');expand.textContent='Expand';expand.onclick=()=>{detail.hidden=!detail.hidden;summary.hidden=!detail.hidden;expand.textContent=detail.hidden?'Expand':'Collapse';
+      if(!detail.hidden)recordContext('CARD_OPENED','RESEARCH',card.id).catch(showError)};
     const keep=document.createElement('button');keep.textContent='Keep card';keep.disabled=card.status!=='temporary';
     const save=document.createElement('button');save.textContent=card.status==='saved'?'Saved to brain':'Save to brain';save.disabled=card.status==='saved';
     const dismiss=document.createElement('button');dismiss.textContent='Dismiss';
@@ -207,16 +217,23 @@ async function boot(){
     finally{if(stream)for(const t of stream.getTracks())t.stop();
       $('j-send').disabled=false;$('j-eyes').disabled=false;busy=false;resumeWake()}
   }
-  async function select(id){await api('/api/jarvis/context',{session_id:sid,document_id:id});selected=id;
+  async function select(id){selected=id;await recordContext('NOTE_SELECTED','NOTE',id);
     const doc=await api('/api/memory/document?id='+encodeURIComponent(id));$('j-selection').textContent='Selected: '+doc.title;return doc}
   async function openSource(id){const doc=await select(id);const reader=$('source-reader');reader.querySelector('h2').textContent=doc.title;
-    reader.querySelector('small').textContent=doc.path+' · indexed snapshot';reader.querySelector('pre').textContent=doc.body;lastFocus=document.activeElement;reader.hidden=false;$('source-close').focus();galaxy?.focus([id])}
+    reader.querySelector('small').textContent=doc.path+' · indexed snapshot';reader.querySelector('pre').textContent=doc.body;lastFocus=document.activeElement;reader.hidden=false;$('source-close').focus();galaxy?.focus([id]);
+    await recordContext('NOTE_OPENED','NOTE',id)}
   function closeSource(){$('source-reader').hidden=true;lastFocus?.focus()}
   $('source-close').onclick=closeSource;
   $('source-reader').addEventListener('keydown',e=>{if(e.key==='Escape')closeSource();if(e.key==='Tab'){const buttons=[$('source-close'),$('source-summary')];e.preventDefault();buttons[document.activeElement===buttons[0]?1:0].focus()}});
   $('source-summary').onclick=()=>{closeSource();ask('Summarize this').catch(showError)};
   addEventListener('holo-selection',e=>select(e.detail.document_id).catch(showError));
-  try {galaxy=new Galaxy($('galaxy'),(id,open)=>(open?openSource(id):select(id)).catch(showError))}
+  addEventListener('holo-note-opened',e=>recordContext('NOTE_OPENED','NOTE',e.detail.document_id).catch(showError));
+  addEventListener('holo-note-moved',e=>recordContext('NOTE_MOVED','NOTE',e.detail.document_id).catch(showError));
+  addEventListener('holo-note-crushed',e=>recordContext('NOTE_CRUSHED','NOTE',e.detail.document_id).catch(showError));
+  try {galaxy=new Galaxy($('galaxy'),(id,open,node)=>{if(open)return openSource(id).catch(showError);
+      const selectedNote=node?.kind==='DOCUMENT'?select(id):Promise.resolve();
+      return Promise.resolve(selectedNote).then(()=>recordContext('NODE_SELECTED','NODE',id)).catch(showError)},
+    event=>recordContext(event.event,event.object_type,event.object_id,event.metadata).catch(showError))}
   catch(_){$('galaxy-caption').textContent='WebGL unavailable. Source search and reader remain available.'}
   async function refresh(){const [graph,memory]=await Promise.all([api('/api/graph'),api('/api/memory/status')]);galaxy?.setData(graph);$('j-count').textContent=memory.active_sources+' sources';
     if(memory.errors.length)entry('Some files could not be indexed.','assistant',[],memory.errors.map(e=>e.relative_path+': '+e.error).join('\n'))}
@@ -226,6 +243,7 @@ async function boot(){
     if($('personal-memory-category').value)query.set('category',$('personal-memory-category').value);
     const result=await api('/api/personal-memory'+(query.size?'?'+query.toString():'')),list=$('personal-memory-results');list.replaceChildren();
     for(const item of result.items||[]){const row=document.createElement('article');row.className='personal-memory-item';row.dataset.id=item.id;
+      row.addEventListener('click',e=>{if(!e.target.closest('button'))recordContext('MEMORY_SELECTED','MEMORY',item.id).catch(showError)});
       const text=document.createElement('p');text.textContent=item.content;
       const meta=document.createElement('small');meta.textContent=`${item.category} · ${item.source_type} · importance ${item.importance}`;
       const controls=document.createElement('div');controls.className='j-row';
@@ -249,6 +267,7 @@ async function boot(){
     $('telegram-start').textContent=state.configured?'Start remote Jarvis':'Configure locally to enable';
   }
   $('telegram-refresh').onclick=()=>refreshTelegram().catch(showError);
+  $('telegram-card').addEventListener('click',e=>{if(!e.target.closest('button'))recordContext('CARD_SELECTED','TELEGRAM','telegram-settings').catch(showError)});
   $('telegram-start').onclick=async()=>{try{await api('/api/telegram/start',{});await refreshTelegram()}catch(error){$('telegram-state').textContent='NOT CONNECTED';$('telegram-detail').textContent=error.message}};
   $('telegram-stop').onclick=async()=>{try{await api('/api/telegram/stop',{});await refreshTelegram()}catch(error){showError(error)}};
   await refreshTelegram();
@@ -270,13 +289,17 @@ async function boot(){
   function generatedDocument(card){
     let el=[...$('document-cards').children].find(x=>x.dataset.id===card.id);
     if(!el){el=document.createElement('article');el.className='document-card';el.dataset.id=card.id;$('document-cards').prepend(el)}
-    el.replaceChildren();const title=document.createElement('h4');title.textContent=card.title;
+    el.replaceChildren();const title=document.createElement('h4');title.textContent=card.title;title.tabIndex=0;title.setAttribute('role','button');
+    title.setAttribute('aria-label','Select generated document');
+    title.onclick=()=>recordContext(card.kind==='invoice'?'INVOICE_SELECTED':'CARD_SELECTED',card.kind==='invoice'?'INVOICE':'DOCUMENT',card.id).catch(showError);
     const meta=document.createElement('small');meta.textContent=`${card.kind.toUpperCase()} · ${new Date(card.created_at*1000).toLocaleString()} · ${card.filename}`;
     const summary=document.createElement('p');summary.textContent=card.summary;
     if(card.source_ids?.length){const refs=document.createElement('small');refs.textContent='Source notes: '+card.source_ids.join(', ');el.append(title,meta,summary,refs)}else el.append(title,meta,summary);
     const controls=document.createElement('div');controls.className='j-row';
-    const open=document.createElement('button');open.textContent='Open PDF';open.onclick=()=>window.open(card.preview_url,'_blank','noopener,noreferrer');
+    const contextType=card.kind==='invoice'?'INVOICE':'DOCUMENT';
+    const open=document.createElement('button');open.textContent='Open PDF';open.onclick=()=>{recordContext('CARD_OPENED',contextType,card.id).catch(showError);window.open(card.preview_url,'_blank','noopener,noreferrer')};
     const preview=document.createElement('button');preview.textContent='Preview';preview.onclick=()=>{let frame=el.querySelector('iframe');if(frame){frame.remove();preview.textContent='Preview';return}
+      recordContext('CARD_OPENED',contextType,card.id).catch(showError);
       frame=document.createElement('iframe');frame.title='Generated PDF preview';frame.src=card.preview_url;el.append(frame);preview.textContent='Hide preview'};
     const pin=document.createElement('button');pin.textContent=card.pinned?'Unpin':'Pin';pin.onclick=async()=>{const result=await api('/api/documents/action',{id:card.id,action:card.pinned?'unpin':'pin'});generatedDocument(result)};
     const save=document.createElement('button');save.textContent='Save copy';save.onclick=()=>window.open(card.preview_url+'&download=1','_blank','noopener,noreferrer');
@@ -383,6 +406,11 @@ async function boot(){
   $('j-screen').onclick=()=>captureScreen($('j-input').value.trim()||'What am I looking at?').catch(showError);
   $('j-eyes').onclick=()=>captureCamera($('j-input').value.trim()||'Look at this.').catch(showError);
   function focusRules(id){return $(id).value.split(',').map(x=>x.trim()).filter(Boolean)}
+  $('focus-card').addEventListener('click',e=>{
+    if(e.target.closest('button,input'))return;
+    const state=$('focus-status').textContent;
+    if(state.startsWith('ACTIVE')||state.startsWith('PAUSED'))recordContext('FOCUS_SELECTED','FOCUS','active').catch(showError);
+  });
   function drawFocus(state){
     const minutes=Math.ceil((state.remaining_seconds||0)/60),parts=[state.state];
     if(['ACTIVE','PAUSED'].includes(state.state))parts.push(minutes+' min left',state.distraction_count+' distractions');
@@ -412,7 +440,9 @@ async function boot(){
     if(!gmailConnected){$('gmail-results').textContent='Connect Gmail using local OAuth setup to read mail.';return}
     try{const result=await api('/api/gmail/list',{mode,query,limit:20});$('gmail-results').replaceChildren();
       for(const item of result.messages){const card=document.createElement('article');card.className='gmail-item';card.setAttribute('role','listitem');
-        const title=document.createElement('strong');title.textContent=item.subject;const from=document.createElement('small');from.textContent=item.from+' · '+(item.unread?'UNREAD':'READ');
+        const title=document.createElement('strong');title.textContent=item.subject;title.tabIndex=0;title.setAttribute('role','button');
+        title.onclick=()=>recordContext('EMAIL_SELECTED','EMAIL',item.id,{title:item.subject,kind:'MESSAGE'}).catch(showError);
+        const from=document.createElement('small');from.textContent=item.from+' · '+(item.unread?'UNREAD':'READ');
         const snippet=document.createElement('p');snippet.textContent=item.snippet;const controls=document.createElement('div');controls.className='j-row';
         const open=document.createElement('button');open.textContent='Open';open.onclick=()=>openGmailThread(item.thread_id);
         const summary=document.createElement('button');summary.textContent='Summarize';summary.onclick=()=>summarizeGmail(item.thread_id);
@@ -453,6 +483,7 @@ async function boot(){
     for(const event of items){const card=document.createElement('article'),title=document.createElement('strong'),time=document.createElement('small'),select=document.createElement('button');
       card.className='calendar-item';card.setAttribute('role','listitem');title.textContent=event.summary;time.textContent=`${event.start} – ${event.end}`;select.textContent='Select';
       select.onclick=()=>{selectedCalendarEvent=event;for(const node of $('calendar-results').querySelectorAll('article'))node.dataset.selected='false';card.dataset.selected='true';
+        recordContext('CALENDAR_SELECTED','CALENDAR',event.id,{title:event.summary,kind:'EVENT'}).catch(showError);
         $('calendar-reschedule').disabled=!calendarConnected;$('calendar-cancel').disabled=!calendarConnected};card.append(title,time,select);$('calendar-results').append(card)}
     if(!items.length)$('calendar-results').textContent='No Calendar events in this range.'}
   async function calendarList(path,payload={}){if(!calendarConnected)return;try{const result=await api(path,payload);drawCalendarEvents(result.items||[]);return result}

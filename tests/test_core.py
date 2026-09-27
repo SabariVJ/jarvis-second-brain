@@ -18,6 +18,19 @@ class CoreTests(unittest.TestCase):
         ca.selected_at -= 1801; self.assertIsNone(ca.selection())
         with self.assertRaises(ValueError): sessions.get('invented')
 
+    def test_spatial_context_is_bounded_expiring_and_metadata_only(self):
+        _, context, _ = Sessions().get()
+        for i in range(40):
+            context.record_context('NODE_SELECTED','NODE',str(i),metadata={
+                'title':'x'*500,'kind':'ENTITY','body':'must not be kept','count':i})
+        snapshot=context.context_snapshot()
+        self.assertEqual(len(snapshot['context_events']),32)
+        self.assertEqual(snapshot['context_events'][0]['object_id'],'8')
+        self.assertEqual(len(snapshot['current_context']['metadata']['title']),240)
+        self.assertNotIn('body',snapshot['current_context']['metadata'])
+        context.current_context['timestamp']-=1801
+        self.assertIsNone(context.context_snapshot()['current_context'])
+
     def test_http_trust(self):
         h = {'Host':'localhost:4890', 'Content-Type':'application/json'}
         self.assertTrue(local_request(h, 4890, True))

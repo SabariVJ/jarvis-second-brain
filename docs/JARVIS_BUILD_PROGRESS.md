@@ -1,11 +1,11 @@
-# JARVIS build progress — continuation through Phase 21, 2026-09-28
+# JARVIS build progress — continuation through Phase 22, 2026-09-28
 
 Branch: `jarvis-second-brain`.
-User-specified run start SHA: `07e086e9cebfbb3ad20f3908c24251ba8554c9e5`.
-Recovered checkpoint before this continuation: `07e086e9cebfbb3ad20f3908c24251ba8554c9e5`.
+Phase 22 run start SHA: `169d50e08a14823622d2a586035eb688054944ef`.
+Recovered checkpoint before this continuation: `169d50e08a14823622d2a586035eb688054944ef`.
 The original archive on D: is unchanged.
 
-Phases 0–20 are preserved and complete. Live account and physical device
+Phases 0–21 are preserved and complete. Live account and physical device
 acceptance remain pending. This is not a full video-parity claim.
 
 ## Phase status, files, validation and remaining work
@@ -33,7 +33,8 @@ acceptance remain pending. This is not a full video-parity claim.
 | 18 Morning briefing | Complete code/mocks/UI, OAuth user setup required for live data | briefing.py, runtime.py, ui/jarvis.js, H.O.L.O briefing card | 55 Python tests; disconnected/failure fallbacks, source-backed brain inputs, mock integrations, manual-only card/voice; browser acceptance and probe 26/26 | 38d6d70 | Optional Google OAuth setup for live Gmail and Calendar inputs |
 | 19 Long-term Memory | Complete | memory/long_term.py, database.py, orchestrator.py, runtime.py, ui/jarvis.js | 65 Python tests; probe 26/26; launch health; browser panel; full browser suite later passed | 1c71e9b | None |
 | 20 Telegram Remote Jarvis | Complete, account setup required for live use | integrations/telegram.py, runtime.py, ui/jarvis.js | Allowlist, polling, voice mocks, approved-file two-step tests; browser disabled-state acceptance; probe 26/26 | 0c483dc | Configure a local bot token and allowlist for live verification |
-| 21 Invoice / Document Automation | Complete | documents.py, database.py, runtime.py, server.py, ui/jarvis.js | 84 Python tests; real local PDF generation; invoice and report browser flows; probe 26/26; launch.cmd | Final SHA in `../FINAL_HANDOFF.md` | None; stop at Phase 21 |
+| 21 Invoice / Document Automation | Complete | documents.py, database.py, runtime.py, server.py, ui/jarvis.js | 84 Python tests; real local PDF generation; invoice and report browser flows; probe 26/26; launch.cmd | 169d50e | None |
+| 22 Deep H.O.L.O Context | Complete | core/context.py, runtime.py, ui/jarvis.js, galaxy.js | 86 Python tests; note/card/node events; expiry and metadata boundary tests; browser context acceptance; probe 26/26; camera-free launch | SHA in `../FINAL_HANDOFF.md` | None |
 
 ## Phase 19 continuation checkpoint
 
@@ -76,7 +77,7 @@ No Telegram token or provider key was supplied.
 
 ## Final validation
 
-- Python 3.11 project environment: **84/84 tests passed**.
+- Python 3.11 project environment: **86/86 tests passed**.
 - Actual OpenAI SDK 2.54.0 serialization/parsing tested over mocked HTTP.
 - Actual pypdf 6.19.0 extraction tested with generated PDF text.
 - `pip check` green; compilation and diff whitespace checks green.
@@ -96,21 +97,22 @@ No Telegram token or provider key was supplied.
   button and natural-language invocation, and no automatic startup request;
   personal memory create/search/provenance/edit/forget; Telegram disabled state;
   invoice details and PDF preview; document pin, share approval/revocation and
-  dismissal; report creation. **Zero page errors.**
+  dismissal; report creation; selected-note context restoration and graph
+  node-collapse context. **Zero page errors.**
 - Windows `launch.cmd` started `server.py`; health endpoint and browser acceptance
 +  passed on isolated port 64117 with temporary data.
 - Phase 20 commit: `0c483dc097ae30d408512ea6214c2c5df663f34a`.
-- Phase 21 committed; see the final SHA in the sibling `../FINAL_HANDOFF.md`.
+- Phase 21 commit: `169d50e08a14823622d2a586035eb688054944ef`.
+- Phase 22 completed and committed; its exact SHA is recorded in the sibling `../FINAL_HANDOFF.md`.
 - Sample index: eight documents/chunks/entities/edges; no extraction errors.
 - No key/live API call, microphone recording, webcam test or external message.
 - vendor/, props/ and sample-notes/ unchanged. Private runtime data remain ignored.
 
 ## Exact continuation point
 
-Phases 0–21 are complete for this run. There is no next coding phase in this
-handoff: stop after Phase 21 as requested. The final Phase 21 commit SHA is
-recorded in the sibling `../FINAL_HANDOFF.md`. Do not proceed to Phase 22 or
-redo Phases 0–18.
+Phases 0–22 are complete. Continue at Phase 23 — Full Agent / Tool Registry,
+using the Phase 22 commit recorded in the sibling `../FINAL_HANDOFF.md` as the
+checkpoint. Preserve Phases 0–21 and do not restart or redesign them.
 
 The only pending checks require the user's own accounts or physical hardware:
 Telegram bot token and user allowlist; optional OpenAI key for voice-note

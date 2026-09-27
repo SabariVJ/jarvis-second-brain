@@ -171,7 +171,7 @@ Original APIs are preserved; GET /api/state was added. New endpoints:
 | GET | /api/health | Configured/local state; no secret values |
 | POST | /api/jarvis/session | Create tab session |
 | GET | /api/jarvis/state?session_id=… | State and bounded event history |
-| POST | /api/jarvis/context | Select/clear verified document ID |
+| POST | /api/jarvis/context | Record a bounded, session-local H.O.L.O selection/open/graph event; note metadata is resolved server-side |
 | POST | /api/jarvis/chat | Text or recognized transcript |
 | POST | /api/jarvis/voice-state | Validated client voice lifecycle |
 | POST | /api/vision/screen | Single transient JPEG analysis, bounded and not persisted |
@@ -189,6 +189,21 @@ Original APIs are preserved; GET /api/state was added. New endpoints:
 | GET | /api/memory/search?q=… | Hybrid/local search with citations |
 | GET | /api/memory/document?id=… | Active indexed source snapshot |
 | GET | /api/graph?focus=… | Bounded source-supported graph |
+
+## Phase 22: Deep H.O.L.O context
+
+Each tab session keeps one current context reference plus a 32-event ring buffer.
+The current reference expires after 30 minutes and disappears when the server
+restarts. Events cover note selection/open/move/crush, graph node selection and
+expand/collapse, graph focus, and selection/open of supported research, memory,
+email, Calendar, generated document/invoice, Focus and Telegram cards. Indexed
+note and graph labels/path references come from the local database; client text
+cannot replace them. Other card metadata is limited to short labels and kind.
+No note body, email body, screenshot, conversation or arbitrary metadata is
+stored in this context object, and this interaction stream is never copied into
+long-term memory. It is descriptive context only: it cannot grant permission
+or approve a tool action. “Summarize this” continues to use a verified selected
+note through the existing retrieval path.
 
 ## Phase 15: Focus Lock
 
