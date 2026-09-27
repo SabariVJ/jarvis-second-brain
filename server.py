@@ -47,7 +47,10 @@ def notes_dir():
 
 def _note(path, n):
     try:
-        text = Path(path).read_text(encoding="utf-8", errors="ignore")
+        resolved = Path(path).resolve()
+        if not resolved.is_relative_to(Path(notes_dir()).resolve()): return None
+        with resolved.open(encoding='utf-8', errors='ignore') as handle:
+            text = handle.read(16000)
     except OSError:
         return None
     lines = [l for l in text.splitlines() if l.strip()]

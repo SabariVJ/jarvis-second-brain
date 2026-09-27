@@ -1,3 +1,30 @@
+# JARVIS + H.O.L.O — Second Brain Foundation
+
+This branch preserves the original H.O.L.O deck and adds local SQLite memory,
+source-backed search, a 3D knowledge graph, selected-note summaries and an optional
+GPT-6 Astra Responses integration. Run `launch.cmd` on Windows, then open
+http://localhost:4890. No camera, microphone or cloud credentials are required for
+local text mode. Use **SECOND BRAIN** for the graph and **RETRY CAMERA** to opt in
+to the original hand tracking.
+
+[Setup and validation](docs/SETUP.md) · [Build progress](docs/JARVIS_BUILD_PROGRESS.md) ·
+[Architecture](docs/ARCHITECTURE.md) · [Baseline audit](docs/BASELINE_AUDIT.md)
+
+![Foundation preview](docs/foundation-preview.png)
+
+Cloud summaries and semantic embeddings are optional and send selected text to
+OpenAI only when configured. Browser voice is opt-in and may use its vendor's
+online service. Live integrations and hardware acceptance remain pending; this
+is not the complete video-parity Jarvis system.
+
+---
+
+# Original H.O.L.O README (baseline reference)
+
+The following describes the original prototype. In this branch, camera starts
+on demand, and optional configured AI features have different privacy behavior
+as documented above.
+
 # ✋ HOLO — Control Your Notes With Your Hands, In The Air
 
 ![HOLO — folder orbs and a real Smithsonian Apollo 11 scan floating over your webcam feed](assets/banner.png)

@@ -38,6 +38,10 @@ class Orchestrator:
                 found = self.tools.execute('search_memory',{'query':message})['result']
                 sources,mode,warning = found['results'],found['mode'],found['warning']
                 if sources: context.select(sources[0]['document_id'])
+            if summary and sources:
+                doc = self.database.document(sources[0]['document_id'])
+                sources = [{**sources[0], 'text':doc['body'][:80000], 'start':0, 'end':min(80000,len(doc['body']))}]
+                if len(doc['body']) > 80000: warning = 'Summary covers the first 80,000 characters of this source.'
             state.transition('THINKING')
             action = 'focus'
             node_ids = [s['document_id'] for s in sources]

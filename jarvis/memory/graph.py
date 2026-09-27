@@ -6,7 +6,7 @@ class Graph:
         with self.database.connect() as db:
             docs = [dict(r) for r in db.execute('''SELECT d.id,d.title AS label,'DOCUMENT' AS kind,
                 d.source_id,s.relative_path AS path FROM documents d JOIN sources s ON s.id=d.source_id
-                WHERE s.status='active' ORDER BY d.title LIMIT ?''', (limit,))]
+                WHERE s.status='active' ORDER BY d.title''')]
             edges = [dict(r) for r in db.execute('''SELECT r.* FROM relationships r
                 JOIN sources s ON s.id=r.source_id WHERE s.status='active' ORDER BY r.id''')]
             if focus:
@@ -14,9 +14,16 @@ class Graph:
                 related_entities = {r['object'] for r in edges if r['subject'] == focus}
                 related_docs.update(r['subject'] for r in edges if r['object'] == focus or r['object'] in related_entities)
                 docs = [r for r in docs if r['id'] in related_docs]
+                docs.sort(key=lambda r:r['id'] != focus)
+            total_documents = len(docs)
+            docs = docs[:max(1,limit//2)]
             ids = {r['id'] for r in docs}
             edges = [r for r in edges if r['subject'] in ids]
             entity_ids = {r['object'] for r in edges}
             entities = [dict(r) for r in db.execute('SELECT id,name AS label,kind FROM entities') if r['id'] in entity_ids]
+            entities = entities[:max(0,limit-len(docs))]
+            visible_entities = {r['id'] for r in entities}
+            edges = [r for r in edges if r['object'] in visible_entities]
             return {'nodes': docs + entities, 'edges': edges, 'limit':limit,
+                    'has_more':total_documents > len(docs) or len(entity_ids)>len(entities),
                     'relation_policy':'Explicit headings, tags and wikilinks only; MENTIONS is not a factual claim.'}

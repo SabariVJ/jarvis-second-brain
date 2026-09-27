@@ -29,4 +29,4 @@
 #source-reader h2{font-size:21px}
 :focus-visible{outline:2px solid #f3cf86;outline-offset:3px}
 @media(max-width:950px){#jarvis-panel{right:10px;width:320px;top:70px;bottom:120px}#galaxy{inset:70px 342px 120px 10px}#brain-toggle{left:20px;top:225px}#galaxy-list{max-width:120px}#ui{gap:5px;flex-wrap:wrap}#ui .chip{padding:6px}#legend{font-size:8px;max-width:95%}}
-@media(max-width:650px){#jarvis-panel{width:calc(100% - 20px);top:52%;bottom:12px}#galaxy{inset:80px 10px 49%}#brain-toggle{top:45px;left:12px}#ring,#legend{display:none}#source-reader{inset:12px}}
+@media(max-width:650px){#jarvis-panel{width:calc(100% - 20px);top:52%;bottom:12px;overflow:auto;padding:12px;gap:7px}#j-log{min-height:65px}#galaxy{inset:80px 10px 49%}#brain-toggle{top:45px;left:12px}#ring,#legend{display:none}#source-reader{inset:12px}}

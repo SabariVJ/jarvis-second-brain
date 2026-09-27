@@ -50,7 +50,7 @@ export class Galaxy {
     for(const [id,m] of this.meshes){m.material.color.setHex(this.highlight.has(id)||id===this.selected?0xffcf7d:this.data.nodes.find(n=>n.id===id)?.kind==='DOCUMENT'?0x7bffd5:0x7aa7e8);m.scale.setScalar(this.highlight.has(id)?1.6:1)}
     const list=this.el.querySelector('#galaxy-list');list.replaceChildren();
     for(const n of this.data.nodes.filter(n=>this.visible.has(n.id))){const b=document.createElement('button');b.textContent=n.label;b.onclick=()=>this.select(n.id);list.append(b)}
-    this.el.querySelector('#galaxy-caption').textContent=`${this.visible.size} nodes · ${this.edges.filter(e=>e.visible).length} supported links\nDrag to orbit · scroll to zoom · gold = retrieved source · brighter edge = stronger evidence`;
+    this.el.querySelector('#galaxy-caption').textContent=`${this.visible.size} nodes · ${this.edges.filter(e=>e.visible).length} supported links${this.data.has_more?' · bounded view: search to focus more sources':''}\nDrag to orbit · scroll to zoom · gold = retrieved source · brighter edge = stronger evidence`;
   }
   select(id){
     const node=this.data.nodes.find(n=>n.id===id);if(!node)return;

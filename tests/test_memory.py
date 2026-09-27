@@ -55,3 +55,14 @@ class MemoryTests(unittest.TestCase):
         import sqlite3
         with self.assertRaises(sqlite3.IntegrityError), self.db.connect() as db:
             db.execute("INSERT INTO memories VALUES ('m','FACT','unsupported','no-source',0,1)")
+
+    def test_graph_bounded_and_focus_outside_initial_page(self):
+        for i in range(12): (self.root/f'{i}.md').write_text(f'# Topic {i}\n[[Shared]]')
+        self.ingest.scan(self.root)
+        graph=Graph(self.db).snapshot(limit=6)
+        self.assertLessEqual(len(graph['nodes']),6);self.assertTrue(graph['has_more'])
+        did=stable_id('doc',str((self.root/'9.md').resolve()))
+        focused=Graph(self.db).snapshot(focus=did,limit=6)
+        self.assertIn(did,[n['id'] for n in focused['nodes']])
+        ids={n['id'] for n in focused['nodes']}
+        self.assertTrue(all(e['subject'] in ids and e['object'] in ids for e in focused['edges']))

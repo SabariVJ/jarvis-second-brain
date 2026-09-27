@@ -67,7 +67,9 @@ async function boot(){
     try{const result=await api('/api/jarvis/chat',{session_id:sid,message,selected_id:selected,spoken:$('j-speak').checked});
       entry(result.answer,'assistant',result.sources,result.warning);status('IDLE · '+result.mode.toUpperCase());
       if(result.sources[0]){selected=result.sources[0].document_id;$('j-selection').textContent='Selected: '+result.sources[0].title}
-      if(result.node_ids.length){$('galaxy').hidden=false;$('brain-toggle').setAttribute('aria-expanded','true');galaxy?.focus(result.node_ids)}
+      if(result.node_ids.length){$('galaxy').hidden=false;$('brain-toggle').setAttribute('aria-expanded','true');
+        if(galaxy&&!galaxy.meshes.has(result.node_ids[0]))galaxy.setData(await api('/api/graph?focus='+encodeURIComponent(result.node_ids[0])));
+        galaxy?.focus(result.node_ids)}
       if(result.action==='open'&&selected)await openSource(selected);speak(result.answer);
     }finally{clearInterval(poll);busy=false;$('j-send').disabled=false}}
   $('j-form').onsubmit=e=>{e.preventDefault();const q=$('j-input').value;$('j-input').value='';ask(q).catch(showError)};
@@ -76,14 +78,14 @@ async function boot(){
   $('j-embed').onclick=async()=>{try{status('EMBEDDING · SENDING NOTE CHUNKS TO OPENAI');await api('/api/memory/embed',{});await refresh();status('IDLE')}catch(e){showError(e)}};
   const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!Recognition){$('j-mic').disabled=true;$('j-voice-note').textContent='Speech recognition unavailable in this browser. Text mode is ready.'}
-  else {let recognition=null;
+  else {let recognition=null,voiceProcessing=false;
     $('j-mic').onclick=async()=>{if(busy)return;if(recognition){recognition.stop();return}await stopSpeech();
       recognition=new Recognition();recognition.lang=navigator.language||'en-US';recognition.continuous=false;recognition.interimResults=false;
       recognition.onstart=()=>{status('LISTENING · MIC ACTIVE');$('j-mic').textContent='Stop listening'};
-      recognition.onresult=async e=>{const transcript=e.results[0][0].transcript;try{await api('/api/jarvis/voice-state',{session_id:sid,state:'TRANSCRIBING'});status('TRANSCRIBING');await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'});await ask(transcript)}catch(err){showError(err)}};
+      recognition.onresult=async e=>{voiceProcessing=true;const transcript=e.results[0][0].transcript;try{await api('/api/jarvis/voice-state',{session_id:sid,state:'TRANSCRIBING'});status('TRANSCRIBING');await api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'});await ask(transcript)}catch(err){showError(err)}finally{voiceProcessing=false}};
       recognition.onerror=e=>{entry('Microphone unavailable: '+e.error);status('IDLE');api('/api/jarvis/voice-state',{session_id:sid,state:'ERROR'}).catch(()=>{})};
-      recognition.onend=()=>{recognition=null;$('j-mic').textContent='Use browser voice';if(!busy){api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'}).catch(()=>{});status('IDLE')}};
-      try{await api('/api/jarvis/voice-state',{session_id:sid,state:'LISTENING'});recognition.start()}catch(e){recognition=null;showError(e)}};
+      recognition.onend=()=>{recognition=null;$('j-mic').textContent='Use browser voice';if(!busy&&!voiceProcessing){api('/api/jarvis/voice-state',{session_id:sid,state:'IDLE'}).catch(()=>{});status('IDLE')}};
+      try{await api('/api/jarvis/voice-state',{session_id:sid,state:'LISTENING'});recognition.start()}catch(e){recognition=null;api('/api/jarvis/voice-state',{session_id:sid,state:'ERROR'}).catch(()=>{});showError(e)}};
   }
   window.jarvisUI={summarize:async id=>{try{await select(id);await ask('Summarize this')}catch(e){showError(e)}},select,openSource,ask,
     focus:ids=>{galaxy?.focus(ids)},get selected(){return selected}};
