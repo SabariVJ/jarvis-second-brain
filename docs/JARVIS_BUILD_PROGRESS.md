@@ -1,8 +1,8 @@
-# JARVIS build progress — continuation through Phase 22, 2026-09-28
+# JARVIS build progress — continuation through Phase 23, 2026-09-28
 
 Branch: `jarvis-second-brain`.
-Phase 22 run start SHA: `169d50e08a14823622d2a586035eb688054944ef`.
-Recovered checkpoint before this continuation: `169d50e08a14823622d2a586035eb688054944ef`.
+Phase 23 run start SHA: `a73081a40c8cdffec16f732a635d729746b90a97`.
+Recovered checkpoint before this continuation: `a73081a40c8cdffec16f732a635d729746b90a97`.
 The original archive on D: is unchanged.
 
 Phases 0–21 are preserved and complete. Live account and physical device
@@ -34,7 +34,8 @@ acceptance remain pending. This is not a full video-parity claim.
 | 19 Long-term Memory | Complete | memory/long_term.py, database.py, orchestrator.py, runtime.py, ui/jarvis.js | 65 Python tests; probe 26/26; launch health; browser panel; full browser suite later passed | 1c71e9b | None |
 | 20 Telegram Remote Jarvis | Complete, account setup required for live use | integrations/telegram.py, runtime.py, ui/jarvis.js | Allowlist, polling, voice mocks, approved-file two-step tests; browser disabled-state acceptance; probe 26/26 | 0c483dc | Configure a local bot token and allowlist for live verification |
 | 21 Invoice / Document Automation | Complete | documents.py, database.py, runtime.py, server.py, ui/jarvis.js | 84 Python tests; real local PDF generation; invoice and report browser flows; probe 26/26; launch.cmd | 169d50e | None |
-| 22 Deep H.O.L.O Context | Complete | core/context.py, runtime.py, ui/jarvis.js, galaxy.js | 86 Python tests; note/card/node events; expiry and metadata boundary tests; browser context acceptance; probe 26/26; camera-free launch | SHA in `../FINAL_HANDOFF.md` | None |
+| 22 Deep H.O.L.O Context | Complete | core/context.py, runtime.py, ui/jarvis.js, galaxy.js | 86 Python tests; note/card/node events; expiry and metadata boundary tests; browser context acceptance; probe 26/26; camera-free launch | a73081a | None |
+| 23 Full Agent / Tool Registry | Complete foundation | tools.py, orchestrator.py, runtime.py | 88 Python tests; 38 typed definitions; argument, permission, unavailable, error, and verification tests; probe 26/26; browser + launch green | SHA in `../FINAL_HANDOFF.md` | Approval ledger is Phase 24 |
 
 ## Phase 19 continuation checkpoint
 
@@ -77,7 +78,7 @@ No Telegram token or provider key was supplied.
 
 ## Final validation
 
-- Python 3.11 project environment: **86/86 tests passed**.
+- Python 3.11 project environment: Phase 22 **86/86**; Phase 23 **88/88 tests passed**.
 - Actual OpenAI SDK 2.54.0 serialization/parsing tested over mocked HTTP.
 - Actual pypdf 6.19.0 extraction tested with generated PDF text.
 - `pip check` green; compilation and diff whitespace checks green.
@@ -103,16 +104,17 @@ No Telegram token or provider key was supplied.
 +  passed on isolated port 64117 with temporary data.
 - Phase 20 commit: `0c483dc097ae30d408512ea6214c2c5df663f34a`.
 - Phase 21 commit: `169d50e08a14823622d2a586035eb688054944ef`.
-- Phase 22 completed and committed; its exact SHA is recorded in the sibling `../FINAL_HANDOFF.md`.
+- Phase 22 commit: `a73081a40c8cdffec16f732a635d729746b90a97`.
+- Phase 23 completed and committed; exact SHA is recorded in the sibling `../FINAL_HANDOFF.md`.
 - Sample index: eight documents/chunks/entities/edges; no extraction errors.
 - No key/live API call, microphone recording, webcam test or external message.
 - vendor/, props/ and sample-notes/ unchanged. Private runtime data remain ignored.
 
 ## Exact continuation point
 
-Phases 0–22 are complete. Continue at Phase 23 — Full Agent / Tool Registry,
-using the Phase 22 commit recorded in the sibling `../FINAL_HANDOFF.md` as the
-checkpoint. Preserve Phases 0–21 and do not restart or redesign them.
+Phases 0–23 are complete. Continue at Phase 24 — Permission + Approval Engine,
+using the Phase 23 commit recorded in the sibling `../FINAL_HANDOFF.md` as the
+checkpoint. Preserve Phases 0–22 and do not restart or redesign them.
 
 The only pending checks require the user's own accounts or physical hardware:
 Telegram bot token and user allowlist; optional OpenAI key for voice-note

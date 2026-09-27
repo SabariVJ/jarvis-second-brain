@@ -69,6 +69,27 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request('/api/jarvis/context',{'session_id':sid,'event':'GRAPH_FOCUSED',
             'object_type':'GRAPH','object_id':'graph','metadata':{'count':2}})[0],200)
 
+    def test_runtime_registers_the_typed_tool_catalog_without_shell(self):
+        definitions=json.loads(self.request('/api/tools')[1]);names={item['name'] for item in definitions['tools']}
+        expected={'search_memory','remember','forget_memory','update_memory','read_document','find_file','list_documents',
+            'search_web','get_current_selection','read_email','search_email','draft_email','send_email','read_calendar',
+            'find_availability','create_calendar_event','reschedule_calendar_event','cancel_calendar_event','start_focus',
+            'pause_focus','resume_focus','stop_focus','capture_screen','analyze_screen','create_invoice','create_document',
+            'telegram_send','open_application','open_file','open_folder','open_url','get_active_application','get_active_window',
+            'get_system_info','set_volume'}
+        self.assertTrue(expected.issubset(names));self.assertFalse(definitions['shell_available'])
+        by_name={item['name']:item for item in definitions['tools']}
+        self.assertEqual(by_name['send_email']['permission_class'],'L3_EXTERNAL_WRITE')
+        self.assertEqual(by_name['search_memory']['permission_class'],'L0_READ')
+        status,raw=self.request('/api/tools/execute',{'name':'search_memory','arguments':{'query':'brand voice'}})
+        self.assertEqual(status,200);self.assertTrue(json.loads(raw)['ok'])
+        status,raw=self.request('/api/tools/execute',{'name':'create_document','arguments':{'kind':'report','title':'Test','content':'No write'},'approved':True})
+        self.assertEqual(status,200);self.assertEqual(json.loads(raw)['error']['code'],'PERMISSION_REQUIRED')
+        status,raw=self.request('/api/tools/execute',{'name':'open_url','arguments':{'url':'file:///secret'},'approved':True})
+        self.assertEqual(status,200);self.assertEqual(json.loads(raw)['error']['code'],'TOOL_UNAVAILABLE')
+        status,raw=self.request('/api/tools/execute',{'name':'not_registered','arguments':{}})
+        self.assertEqual(status,200);self.assertEqual(json.loads(raw)['error']['code'],'UNKNOWN_TOOL')
+
     def test_origin_host_body_and_static_boundary(self):
         self.assertEqual(self.request('/api/memory/reindex',{}, {'Origin':'https://evil.test'})[0],403)
         self.assertEqual(self.request('/api/tree',headers={'Host':'evil.test'})[0],403)

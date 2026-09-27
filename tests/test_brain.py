@@ -14,7 +14,7 @@ from jarvis.ai.astra import Astra
 from jarvis.core.context import Context
 from jarvis.core.state import StateMachine
 from jarvis.core.orchestrator import Orchestrator
-from jarvis.tools import Registry, Tool
+from jarvis.tools import Registry, Tool, ToolError
 from jarvis.memory.long_term import LongTermMemory
 
 class BrainTests(unittest.TestCase):
@@ -93,6 +93,24 @@ class BrainTests(unittest.TestCase):
         with self.assertRaises(PermissionError): r.execute('send',{'text':'a'})
         with self.assertRaises(ValueError): r.execute('send',{'text':'a','approved':True})
         callback.assert_not_called()
+
+    def test_tool_registry_schemas_unavailable_errors_and_verification(self):
+        r=Registry();r.register(Tool('lookup',arguments={'query':{'type':'string','maxLength':12}},
+            permission_class='L0_READ',function=lambda query:{'value':query},verifier=lambda result,args:result['value']==args['query']))
+        self.assertEqual(r.execute('lookup',{'query':'hello'})['verification'],'VERIFIED')
+        for args in ({'query':'a','approved':True},{'query':'x'*13},{'query':3}):
+            with self.assertRaises(ToolError) as error:r.execute('lookup',args)
+            self.assertIn(error.exception.result['error']['code'],{'INVALID_ARGUMENT','INVALID_ARGUMENTS'})
+        with self.assertRaises(ToolError) as error:r.execute('missing',{})
+        self.assertEqual(error.exception.result['error']['code'],'UNKNOWN_TOOL')
+        r.register(Tool('offline',arguments={},permission_class='L0_READ',function=lambda:{},available=False))
+        with self.assertRaises(ToolError) as error:r.execute('offline',{})
+        self.assertEqual(error.exception.result['error']['code'],'TOOL_UNAVAILABLE')
+        mutation=Mock();r.register(Tool('send',4,{'text':str},mutation))
+        with self.assertRaises(PermissionError) as error:r.execute('send',{'text':'hello'})
+        self.assertEqual(error.exception.result['error']['code'],'PERMISSION_REQUIRED')
+        mutation.assert_not_called()
+
 
     def test_intentional_personal_memory_commands_provenance_update_and_forget(self):
         memory=LongTermMemory(self.db)

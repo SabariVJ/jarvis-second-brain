@@ -173,6 +173,8 @@ Original APIs are preserved; GET /api/state was added. New endpoints:
 | GET | /api/jarvis/state?session_id=… | State and bounded event history |
 | POST | /api/jarvis/context | Record a bounded, session-local H.O.L.O selection/open/graph event; note metadata is resolved server-side |
 | POST | /api/jarvis/chat | Text or recognized transcript |
+| GET | /api/tools | Typed allowlist, argument schemas, availability and permission class |
+| POST | /api/tools/execute | Execute a registered tool; non-read actions are denied until an approval is attached |
 | POST | /api/jarvis/voice-state | Validated client voice lifecycle |
 | POST | /api/vision/screen | Single transient JPEG analysis, bounded and not persisted |
 | POST | /api/vision/camera | Single transient camera frame analysis |
@@ -204,6 +206,21 @@ stored in this context object, and this interaction stream is never copied into
 long-term memory. It is descriptive context only: it cannot grant permission
 or approve a tool action. “Summarize this” continues to use a verified selected
 note through the existing retrieval path.
+
+## Phase 23: Agent / tool registry
+
+`jarvis.tools.Registry` is the typed execution boundary. Every definition has a
+name, description, argument schema, permission class, availability, execution
+function and optional result verifier. Validation rejects unknown fields, bad
+types, out-of-range values and oversized nested objects. Results carry an
+`ok` flag, structured error when applicable, and a verification state. Local
+reads may execute; writes and external actions require a trusted server-side
+authorizer. The HTTP route never accepts an approval flag from its caller.
+Explicit personal-memory commands are recognized and routed through the same
+registry. Windows actions, direct Telegram sending and screen capture are
+registered as unavailable until their permission and user-gesture foundations
+are ready. No shell or arbitrary PowerShell tool is registered, and Astra does
+not receive unrestricted runtime function calling.
 
 ## Phase 15: Focus Lock
 

@@ -21,6 +21,7 @@ from .context import Context
 from .state import StateMachine
 from io import BytesIO
 from jarvis.documents import DocumentAutomation
+from jarvis.tools import Tool
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -48,6 +49,88 @@ class Runtime:
         if self.brain.enabled:
             transcriber=self._transcribe_telegram_voice
         self.telegram=TelegramAdapter(on_text=self._telegram_chat,transcriber=transcriber,artifact_provider=self.documents.telegram_artifact)
+        self._register_tool_catalog()
+
+    def _register_tool_catalog(self):
+        registry=self.orchestrator.tools
+        def s(maximum=4000,minimum=1,**extra):return {'type':'string','minLength':minimum,'maxLength':maximum,**extra}
+        def obj(properties,required=None):return {'type':'object','properties':properties,'required':list(required if required is not None else properties)}
+        def add(name,description,arguments,permission,function,available=True,verifier=None):
+            if name not in registry.tools:
+                registry.register(Tool(name,arguments=arguments,description=description,
+                    permission_class=permission,function=function,available=available,verifier=verifier))
+        off=lambda *args,**kwargs:None
+        active_focus={'minutes':{'type':'integer','minimum':1,'maximum':480},'goal':s(120),
+            'allowed_apps':{'type':'array','items':s(80),'maxItems':30,'required':False},
+            'distractions':{'type':'array','items':s(120),'maxItems':30,'required':False}}
+        add('remember','Save a personal fact from an explicit user request.',
+            {'content':s(2000),'source_type':{'type':'string','enum':['user_explicit','telegram_explicit']}},'L2_PERSONAL_WRITE',
+            lambda content,source_type:self.long_term_memory.capture_allowed(content,source_type))
+        add('update_memory','Update a selected personal memory with new provenance.',
+            {'memory_id':s(80),'content':s(2000)},'L2_PERSONAL_WRITE',self.long_term_memory.update)
+        add('forget_memory','Forget one selected personal memory.',{'memory_id':s(80)},'L2_PERSONAL_WRITE',self.long_term_memory.forget)
+        add('find_file','Search active indexed files by content or title.',{'query':s(1000)},'L0_READ',self.retrieval.search)
+        add('list_documents','List active indexed notes without their bodies.',
+            {'limit':{'type':'integer','minimum':1,'maximum':100,'required':False}},'L0_READ',
+            lambda limit=30:self._list_indexed_documents(limit))
+        add('search_web','Search the web with cited results.',{'query':s(1000)},'L0_READ',
+            self.research.run if self.research else off,bool(self.research and self.research.enabled))
+        add('get_current_selection','Read this tab’s short-lived H.O.L.O context.',{'session_id':s(100)},'L0_READ',
+            lambda session_id:self._session_context(session_id))
+        add('read_email','Read a Gmail thread by provider ID.',{'thread_id':s(200)},'L0_READ',self.gmail.thread)
+        add('search_email','Search inbox metadata in Gmail.',{'query':s(300),'limit':{'type':'integer','minimum':1,'maximum':50,'required':False}},'L0_READ',
+            lambda query,limit=20:self.gmail.list_messages('search',query,limit))
+        add('draft_email','Create a Gmail draft; sending is a separate action.',
+            {'to':s(320),'subject':s(300),'body':s(20000)},'L2_PERSONAL_WRITE',self.gmail.create_draft)
+        add('send_email','Send a reviewed Gmail draft after an approval.',
+            {'draft_id':s(200),'confirmation':s(240)},'L3_EXTERNAL_WRITE',self.gmail.send_draft)
+        add('read_calendar','Read calendar events within an explicit range.',{'start':s(64),'end':s(64),'query':s(300,0,required=False)},
+            'L0_READ',lambda start,end,query='':self.calendar.events(start,end,query))
+        add('find_availability','Read Google Calendar free/busy for a range.',{'start':s(64),'end':s(64)},'L0_READ',self.calendar.availability)
+        add('create_calendar_event','Create an event after approval.',{'summary':s(300),'start':s(64),'end':s(64),
+            'description':s(5000,0,required=False),'confirmation':s(240)},'L3_EXTERNAL_WRITE',self.calendar.create)
+        add('reschedule_calendar_event','Reschedule an event after approval.',{'event_id':s(200),'start':s(64),'end':s(64),'confirmation':s(240)},
+            'L3_EXTERNAL_WRITE',self.calendar.reschedule)
+        add('cancel_calendar_event','Cancel an event after approval.',{'event_id':s(200),'confirmation':s(240)},'L3_EXTERNAL_WRITE',self.calendar.cancel)
+        add('start_focus','Start a local Focus Lock session.',active_focus,'L1_REVERSIBLE',
+            lambda minutes,goal,allowed_apps=None,distractions=None:self.focus.start(minutes,goal,allowed_apps,distractions))
+        for name in ('pause_focus','resume_focus','stop_focus'):
+            method=getattr(self.focus,name.removesuffix('_focus'))
+            add(name,name.replace('_',' ').capitalize()+' for the active local session.',{},'L1_REVERSIBLE',lambda method=method:method())
+        add('capture_screen','Request one user-selected screen frame.',{'question':s(1000)},'L2_PERSONAL_WRITE',off,False)
+        add('analyze_screen','Analyze a single explicitly captured frame.',{'question':s(1000),'image_data_url':s(700000)},'L2_PERSONAL_WRITE',off,False)
+        invoice=obj({'seller':obj({'name':s(200),'address':s(1000),'email':s(320,0,required=False)},['name','address']),
+            'customer':obj({'name':s(200),'address':s(1000),'email':s(320,0,required=False)},['name','address']),
+            'currency':s(3,3),'invoice_number':s(40,0,required=False),'invoice_date':s(10,0,required=False),'due_date':s(10,0,required=False),
+            'items':{'type':'array','maxItems':30,'items':obj({'description':s(500),'quantity':{'type':'number','minimum':0.0001,'maximum':100000},
+                'unit_price':{'type':'number','minimum':0,'maximum':1000000000},'tax_rate':{'type':'number','minimum':0,'maximum':100,'required':False}},['description','quantity','unit_price'])},
+            'source_ids':{'type':'array','items':s(80),'maxItems':30,'required':False}},['seller','customer','items'])
+        add('create_invoice','Create a local invoice PDF draft after authorization.',{'data':invoice},'L2_PERSONAL_WRITE',lambda data:self.documents.create_invoice(data))
+        add('create_document','Create a local report, summary or letter PDF.',{'kind':{'type':'string','enum':['report','summary','letter']},
+            'title':s(200),'content':s(100000),'source_ids':{'type':'array','items':s(80),'maxItems':30,'required':False}},
+            'L2_PERSONAL_WRITE',lambda kind,title,content,source_ids=None:self.documents.create_document(kind,title,content,source_ids))
+        add('telegram_send','Send an approved, allowlisted Telegram artifact after explicit confirmation.',{'document_id':s(80),'user_id':s(32)},
+            'L3_EXTERNAL_WRITE',off,False)
+        windows={
+            'open_application':({'application':s(120)},'L1_REVERSIBLE'),
+            'open_file':({'path':s(1000)},'L1_REVERSIBLE'),
+            'open_folder':({'path':s(1000)},'L1_REVERSIBLE'),
+            'open_url':({'url':s(2048)},'L1_REVERSIBLE'),
+            'get_active_application':({},'L0_READ'),'get_active_window':({},'L0_READ'),
+            'set_volume':({'percent':{'type':'integer','minimum':0,'maximum':100}},'L1_REVERSIBLE')}
+        for name,(arguments,permission) in windows.items():add(name,'Safe structured Windows operation; available in Phase 27.',arguments,permission,off,False)
+        add('get_system_info','Read non-identifying runtime and platform information.',{},'L0_READ',
+            lambda:{'platform':os.name,'python':__import__('platform').python_version(),'service':'Jarvis local'})
+
+    def _list_indexed_documents(self,limit=30):
+        with self.database.connect() as db:
+            rows=db.execute('''SELECT d.id,d.title,s.relative_path AS path,s.modified FROM documents d
+                JOIN sources s ON s.id=d.source_id WHERE s.status='active' ORDER BY d.title LIMIT ?''',(max(1,min(int(limit),100)),)).fetchall()
+        return {'documents':[dict(row) for row in rows]}
+
+    def _session_context(self,session_id):
+        _,context,_=self.sessions.get(session_id)
+        return context.context_snapshot()
 
     def health(self):
         return {'ok': True, 'service': 'Jarvis', 'camera_required': False,
@@ -116,6 +199,15 @@ class Runtime:
     def dispatch(self, method, path, data, query):
         if method == 'GET' and path == '/api/health':
             return {**self.health(),'screen_vision_enabled':self.vision.enabled}
+        if method == 'GET' and path == '/api/tools':
+            return {'tools':self.orchestrator.tools.definitions(),'shell_available':False}
+        if method == 'POST' and path == '/api/tools/execute':
+            name=data.get('name');arguments=data.get('arguments',{})
+            try:return self.orchestrator.tools.execute(name,arguments)
+            except Exception as error:
+                structured=getattr(error,'result',None)
+                if structured is not None:return structured
+                raise
         if method == 'GET' and path == '/api/focus':
             return self.focus.status()
         if method == 'GET' and path == '/api/integrations/gmail': return self.gmail.status()

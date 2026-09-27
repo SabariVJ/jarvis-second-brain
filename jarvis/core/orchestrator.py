@@ -10,11 +10,25 @@ class Orchestrator:
         self.research = research
         self.long_term_memory=long_term_memory
         self.document_service=document_service
-        self.tools = Registry()
+        self.tools = Registry(authorizer=self._authorize_explicit_memory_tool)
         self.tools.register(Tool('search_memory',0,{'query':str},retrieval.search))
         self.tools.register(Tool('read_document',0,{'doc_id':str},database.document))
         if research:
             self.tools.register(Tool('web_research',0,{'query':str},research.run))
+        if long_term_memory:
+            self.tools.register(Tool('search_personal_memory',0,{'query':str},long_term_memory.search))
+            self.tools.register(Tool('inspect_memory',0,{'memory_id':str},long_term_memory.inspect))
+            self.tools.register(Tool('remember',2,function=lambda content,source_type:long_term_memory.capture_allowed(content,source_type),
+                arguments={'content':{'type':'string','maxLength':2000},'source_type':{'type':'string','enum':['user_explicit','telegram_explicit']}},
+                description='Save a clear personal fact only after an explicit user remember command.'))
+            self.tools.register(Tool('update_memory',2,{'memory_id':str,'content':str},long_term_memory.update,
+                description='Update one selected personal memory while preserving provenance.'))
+            self.tools.register(Tool('forget_memory',2,{'memory_id':str},long_term_memory.forget,
+                description='Forget one selected personal memory on an explicit user request.'))
+
+    @staticmethod
+    def _authorize_explicit_memory_tool(tool,args,authorization):
+        return authorization=='explicit_user_memory_command' and tool.name in {'remember','update_memory','forget_memory'}
 
     def chat(self, message, context, state, selected_id=None, spoken=False, capture_memories=True, origin='local'):
         if not isinstance(message,str) or not message.strip() or len(message)>4000:
@@ -149,7 +163,8 @@ class Orchestrator:
         explicit=re.match(r'^(?:please\s+)?remember(?:\s+that)?\s+(.+?)\s*[.!?]*$',raw,re.I)
         if explicit:
             source_type='telegram_explicit' if origin=='telegram' else 'user_explicit'
-            item=memory.capture_allowed(explicit.group(1),source_type);context.last_memory_id=item['id']
+            item=self.tools.execute('remember',{'content':explicit.group(1),'source_type':source_type},
+                authorization='explicit_user_memory_command')['result'];context.last_memory_id=item['id']
             message_text='I already have this memory; it remains from your explicit request.' if item.get('duplicate') else 'I saved this intentional personal memory.'
             result=self._finish(message_text,[],[],state,'personal_memory',None);result['memory']=item;return result
         if re.match(r'^(?:don.t|do not) remember this\.?$',raw,re.I):
@@ -159,19 +174,20 @@ class Orchestrator:
             target=no_remember.group(1)
             category='PREFERENCE' if 'preference' in target.casefold() else None
             target=re.sub(r'^(?:my\s+)?(?:preference\s+(?:for|about)\s+|that\s+)','',target,flags=re.I)
-            matches=memory.search(target,category=category,limit=3)
+            matches=self.tools.execute('search_personal_memory',{'query':target})['result']
+            matches=[item for item in matches if not category or item['category']==category][:3]
             if len(matches)==1:
-                result=memory.forget(matches[0]['id']);context.last_memory_id=None
+                result=self.tools.execute('forget_memory',{'memory_id':matches[0]['id']},authorization='explicit_user_memory_command')['result'];context.last_memory_id=None
                 return self._finish('I deleted that stored personal memory.',[],[],state,'personal_memory',None)
             return self._finish('I did not find one unambiguous stored memory to delete.',[],[],state,'personal_memory',None)
         if re.match(r'^(?:why do you know that|show why you know that)\??$',raw,re.I):
             if not context.last_memory_id:return self._finish('Select or search for a personal memory first, then ask why I know it.',[],[],state,'personal_memory',None)
-            item=memory.inspect(context.last_memory_id)
+            item=self.tools.execute('inspect_memory',{'memory_id':context.last_memory_id})['result']
             result=self._finish(f"This is a {item['category'].lower()} memory from {item['source']['reference']} (recorded {item['created_at']}).",[],[],state,'personal_memory',None)
             result['memory']=item;return result
         recall=re.match(r'^(?:what do you remember about|show memories related to|what do you remember regarding)\s+(.+?)\??$',raw,re.I)
         if recall:
-            items=memory.search(recall.group(1),limit=10)
+            items=self.tools.execute('search_personal_memory',{'query':recall.group(1)})['result'][:10]
             if not items:return self._finish('I do not have a matching personal memory. This is separate from searching indexed documents.',[],[],state,'personal_memory',None)
             context.last_memory_id=items[0]['id']
             answer='Personal long-term memories (separate from indexed documents):\n'+ '\n'.join(
@@ -180,14 +196,14 @@ class Orchestrator:
         corrected=re.match(r'^(?:update what you remember about\s+(.+?)\s+to\s+|update memory\s+(.+?)\s+to\s+)(.+?)\s*[.!?]*$',raw,re.I)
         if corrected:
             query=corrected.group(1) or corrected.group(2);replacement=corrected.group(3)
-            matches=memory.search(query,limit=3)
+            matches=self.tools.execute('search_personal_memory',{'query':query})['result'][:3]
             if len(matches)!=1:return self._finish('I need one matching memory before I can update it. Search or inspect the memory first.',[],[],state,'personal_memory',None)
-            item=memory.update(matches[0]['id'],replacement);context.last_memory_id=item['id']
+            item=self.tools.execute('update_memory',{'memory_id':matches[0]['id'],'content':replacement},authorization='explicit_user_memory_command')['result'];context.last_memory_id=item['id']
             result=self._finish('I updated that personal memory and kept its provenance.',[],[],state,'personal_memory',None);result['memory']=item;return result
         corrected=re.match(r'^(?:correct that memory|update that memory)(?:\s+to|\s*:)?\s+(.+?)\s*[.!?]*$',raw,re.I)
         if corrected:
             if not context.last_memory_id:return self._finish('Search for a personal memory before correcting it.',[],[],state,'personal_memory',None)
-            item=memory.update(context.last_memory_id,corrected.group(1));context.last_memory_id=item['id']
+            item=self.tools.execute('update_memory',{'memory_id':context.last_memory_id,'content':corrected.group(1)},authorization='explicit_user_memory_command')['result'];context.last_memory_id=item['id']
             result=self._finish('I corrected that personal memory and updated its provenance.',[],[],state,'personal_memory',None);result['memory']=item;return result
         forget=re.match(r'^(?:forget|delete)\s+(.+?)\s*[.!?]*$',raw,re.I)
         if forget:
@@ -199,10 +215,11 @@ class Orchestrator:
                 category='PREFERENCE' if 'preference' in target else None
                 search=re.sub(r'^(?:my\s+)?(?:saved\s+)?(?:preference\s+(?:for|about)\s+)?','',target)
                 search=re.sub(r'^that\s+','',search)
-                matches=memory.search(search,category=category,limit=3)
+                matches=self.tools.execute('search_personal_memory',{'query':search})['result']
+                matches=[item for item in matches if not category or item['category']==category][:3]
                 if len(matches)!=1:return self._finish('I need one matching memory before I can forget it. Search or inspect the memory first.',[],[],state,'personal_memory',None)
                 memory_id=matches[0]['id']
-            memory.forget(memory_id);context.last_memory_id=None
+            self.tools.execute('forget_memory',{'memory_id':memory_id},authorization='explicit_user_memory_command');context.last_memory_id=None
             return self._finish('I deleted that personal memory.',[],[],state,'personal_memory',None)
         return None
 
