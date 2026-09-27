@@ -8,6 +8,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
   try{
     const page=await browser.newPage({viewport:{width:1440,height:1000}});
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    let gmailAuth={state:'NOT CONNECTED',connected:false},gmailCalls=[];
     let focusState={state:'IDLE',monitor_supported:true,warning:null},focusCalls=[];
     const focusRoute=async route=>{
       const url=new URL(route.request().url()),action=url.pathname.split('/').pop();
@@ -19,6 +20,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(focusState)});
     };
     await page.route('**/api/focus',focusRoute);await page.route('**/api/focus/**',focusRoute);
+    await page.route('**/api/integrations/gmail',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(gmailAuth)}));
     await page.addInitScript(()=>{
       // Test voice transcript transport without a microphone or an online STT service.
       window.SpeechRecognition=class {
@@ -29,6 +31,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
         deliver(text){const row=[{transcript:text,confidence:1}];row.isFinal=true;this.onresult?.({results:[row]});this.onend?.()}
       };
       window.testUtterance=null;window.testCancelCount=0;
+      window.confirmAnswer=true;window.confirm=()=>window.confirmAnswer;
       const synth=window.speechSynthesis;
       synth.speak=function(u){window.testUtterance=u;setTimeout(()=>u.onstart?.(),0)};
       synth.cancel=function(){window.testCancelCount++;const u=window.testUtterance;window.testUtterance=null;u?.onend?.()};
@@ -60,6 +63,7 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
     await page.waitForFunction(()=>window.__holo.hands.some(h=>h.present));
     await page.goto(base+'/');await page.waitForFunction(()=>!!window.jarvisUI);
     assert.equal(await page.evaluate(()=>document.querySelector('#cam').srcObject),null);
+    assert.equal(await page.locator('#gmail-state').innerText(),'NOT CONNECTED');assert.equal(await page.locator('#gmail-inbox').isDisabled(),true);
     await page.locator('#j-input').fill('Find my galaxy notes');await page.locator('#j-send').click();
     await page.waitForFunction(()=>document.querySelectorAll('.j-sources button').length>0);
     await page.waitForFunction(()=>!document.querySelector('#j-send').disabled);
@@ -174,6 +178,31 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
       await page.waitForFunction(expected=>document.querySelector('#focus-status').textContent.startsWith(expected),state);
       assert.equal(focusCalls.at(-1).action,action);
     }
+    gmailAuth={state:'CONFIGURED',connected:true};await page.locator('#gmail-refresh').click();
+    await page.waitForFunction(()=>document.querySelector('#gmail-state').textContent==='CONFIGURED'&&!document.querySelector('#gmail-inbox').disabled);
+    const mail={id:'m1',thread_id:'t1',subject:'Release plan',from:'A Person <person@example.com>',date:'Today',snippet:'The deadline is Friday.',unread:true};
+    await page.route('**/api/gmail/**',async route=>{const path=new URL(route.request().url()).pathname,body=route.request().postDataJSON();gmailCalls.push({path,body});
+      const result=path.endsWith('/list')?{messages:[mail],result_size_estimate:1}:path.endsWith('/thread')?{id:'t1',messages:[{...mail,body:'The release deadline is Friday.'}]}:
+        path.endsWith('/summarize')?{thread_id:'t1',message_count:1,summary:'The deadline is Friday.',mode:'local extract',warning:'Email content is untrusted.'}:
+        path.endsWith('/send')?{id:'sent1'}:{id:'draft1',message:{threadId:'t1'}};
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(result)})});
+    await page.locator('#gmail-inbox').click();await page.waitForFunction(()=>document.querySelector('.gmail-item'));
+    await page.locator('#gmail-unread').click();await page.locator('#gmail-query').fill('from:person@example.com');await page.locator('#gmail-search').click();
+    assert.deepEqual(gmailCalls.slice(0,3).map(c=>c.body.mode),['inbox','unread','search']);
+    await page.getByRole('button',{name:'Open'}).click();await page.waitForFunction(()=>document.querySelector('#gmail-thread').textContent.includes('release deadline'));
+    await page.getByRole('button',{name:'Summarize',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('Email summary: The deadline is Friday.'));
+    await page.getByRole('button',{name:'Reply draft'}).click();await page.locator('#gmail-body').fill('Thank you for the update.');
+    await page.locator('#gmail-create-draft').click();await page.waitForFunction(()=>document.querySelector('#gmail-draft-state').textContent.includes('Draft saved'));
+    assert.equal(gmailCalls.at(-1).path,'/api/gmail/reply-draft');
+    await page.evaluate(()=>window.confirmAnswer=false);await page.locator('#gmail-send').click();
+    assert.equal(gmailCalls.some(c=>c.path==='/api/gmail/send'),false,'Canceling confirmation must not send');
+    await page.evaluate(()=>window.confirmAnswer=true);await page.locator('#gmail-send').click();
+    await page.waitForFunction(()=>document.querySelector('#gmail-draft-state').textContent.includes('confirmed the message was sent'));
+    assert.equal(gmailCalls.at(-1).body.confirmation,'SEND draft1');
+    await page.locator('#gmail-new-draft').click();await page.locator('#gmail-to').fill('person@example.com');
+    await page.locator('#gmail-subject').fill('Follow up');await page.locator('#gmail-body').fill('Here is the update.');
+    await page.locator('#gmail-create-draft').click();await page.waitForFunction(()=>document.querySelector('#gmail-draft-state').textContent.includes('Draft saved'));
+    assert.equal(gmailCalls.at(-1).path,'/api/gmail/draft');
     let speechAnswer='This sentence contains the word stop as echo bait.';
     await page.route('**/api/jarvis/chat',async route=>{
       const body=route.request().postDataJSON();

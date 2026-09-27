@@ -140,7 +140,32 @@ screenshots. Browser URLs are not inspected; a tab title can match the site
 keywords you enter. On other operating systems the focus timer and buttons work
 without application monitoring.
 
-Gmail, Calendar and Telegram are **not implemented** in this foundation. There is
-no connection setup to perform yet; do not add tokens speculatively. Implement
-their OAuth/allowlist/approval layers in phases 16, 17 and 20 first. No external
-messages, events or other side-effect actions can be sent by the current runtime.
+## Gmail (Phase 16)
+
+The Gmail card is opt-in and shows **NOT CONNECTED** until local Google OAuth
+credentials are configured. The adapter reads inbox/unread/search results and
+threads on demand, makes a local extractive summary, and creates drafts. Sending
+is a separate action: Jarvis asks for browser confirmation and the server also
+requires the exact phrase `SEND <draft-id>`. Mail content is treated as untrusted,
+is not added to the second brain, and is not persisted by this adapter.
+
+To connect it locally:
+
+1. In Google Cloud, create/select a project, enable the Gmail API, configure its
+   OAuth consent screen, and create an OAuth client for a local installed or web
+   application. Request only `https://www.googleapis.com/auth/gmail.readonly`,
+   `https://www.googleapis.com/auth/gmail.compose`, and
+   `https://www.googleapis.com/auth/gmail.send`. Google may require consent-screen
+   verification or test-user approval for these scopes.
+2. Use Google's OAuth flow outside chat with offline access to obtain a refresh
+   token for the intended account and these scopes. Keep the client secret and
+   refresh token private; never paste them into chat or commit them.
+3. Set `JARVIS_GOOGLE_CLIENT_ID`, `JARVIS_GOOGLE_CLIENT_SECRET`, and
+   `JARVIS_GOOGLE_REFRESH_TOKEN` in the local process environment, then restart
+   `launch.cmd` and press Refresh in the Gmail card. Credentials are read from
+   the process environment; Jarvis does not provide a credential-entry page.
+
+Without those local values, Gmail remains disconnected and its controls stay
+disabled. Automated tests use a mocked Google token endpoint and mocked Gmail
+API; they do not send real email. Calendar is the next integration phase.
+Telegram and outbound messaging beyond confirmed Gmail drafts remain unimplemented.

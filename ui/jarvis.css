@@ -12,6 +12,14 @@
 #j-log{flex:1;overflow:auto;min-height:90px;white-space:pre-wrap}
 #focus-card{border:1px solid #477264;border-radius:12px;background:#0a1714;padding:10px;display:flex;flex-direction:column;gap:6px}
 #focus-card h3{font:11px ui-monospace,monospace;letter-spacing:.12em;color:#9bf2cd}
+#gmail-card{border:1px solid #536985;border-radius:12px;background:#0c131b;padding:10px;display:flex;flex-direction:column;gap:7px}
+#gmail-card h3{font:11px ui-monospace,monospace;letter-spacing:.12em;color:#b5d8ff}
+#gmail-results{display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto}
+.gmail-item,#gmail-thread article{border:1px solid #35465a;border-radius:8px;padding:8px;background:#0b1118}
+.gmail-item small{display:block;color:#9bb0c4}.gmail-item p{margin:5px 0;white-space:pre-wrap}
+#gmail-thread{max-height:180px;overflow:auto;white-space:pre-wrap}
+#gmail-thread pre,#gmail-compose textarea{white-space:pre-wrap;overflow-wrap:anywhere;background:#07100e;color:#e3ffee;border:1px solid #446255;border-radius:8px;padding:8px;font:12px/1.5 'Segoe UI',sans-serif;width:100%;resize:vertical}
+#gmail-compose[hidden]{display:none}
 #focus-status{font:10px ui-monospace,monospace;color:#e4c47f}
 .focus-fields{display:grid;grid-template-columns:90px 1fr;gap:6px}
 .focus-fields input{padding:7px!important}

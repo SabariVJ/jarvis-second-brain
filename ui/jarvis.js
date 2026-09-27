@@ -30,6 +30,17 @@ async function boot(){
         <label class="sub">Distracting app or site titles<input id="focus-distracting" value="instagram, tiktok, youtube, reddit"></label>
         <div class="j-row"><button id="focus-start">Start</button><button id="focus-pause">Pause</button><button id="focus-resume">Resume</button><button id="focus-stop">Stop</button></div>
       </section>
+      <section id="gmail-card" aria-label="Gmail">
+        <h3>GMAIL <span id="gmail-state" class="sub">CHECKING</span><button id="gmail-refresh" aria-label="Refresh Gmail connection">Refresh</button></h3>
+        <div class="j-row"><button id="gmail-inbox" disabled>Inbox</button><button id="gmail-unread" disabled>Unread</button><button id="gmail-new-draft" disabled>New draft</button></div>
+        <div class="j-row"><input id="gmail-query" maxlength="300" placeholder="Search Gmail"><button id="gmail-search" disabled>Search</button></div>
+        <div id="gmail-results" role="list"></div><div id="gmail-thread" class="sub" role="region" aria-label="Gmail thread"></div>
+        <div id="gmail-compose" hidden><label class="sub">To<input id="gmail-to" maxlength="320"></label>
+          <label class="sub">Subject<input id="gmail-subject" maxlength="300"></label>
+          <label class="sub">Draft body<textarea id="gmail-body" maxlength="20000" rows="4"></textarea></label>
+          <div class="j-row"><button id="gmail-create-draft" disabled>Save draft</button><button id="gmail-send" hidden>Send draft…</button></div>
+          <small id="gmail-draft-state" class="sub"></small></div>
+      </section>
       <div class="j-row"><button id="j-index">Reindex notes</button><button id="j-embed" hidden>Build semantic index</button><span class="sub" id="j-count"></span></div>
     </aside>
     <section id="research-cards" aria-label="Temporary research cards"></section>
@@ -239,6 +250,43 @@ async function boot(){
   $('focus-resume').onclick=()=>focusAction('/api/focus/resume',{}).catch(()=>{});
   $('focus-stop').onclick=()=>focusAction('/api/focus/stop',{}).catch(()=>{});
   setInterval(()=>focusAction('/api/focus').catch(()=>{}),5000);
+  let gmailConnected=false,currentGmailThread=null,currentGmailDraft=null;
+  function setGmailConnected(connected,state){gmailConnected=Boolean(connected);$('gmail-state').textContent=state|| (gmailConnected?'CONFIGURED':'NOT CONNECTED');
+    for(const id of ['gmail-inbox','gmail-unread','gmail-search','gmail-create-draft','gmail-new-draft'])$(id).disabled=!gmailConnected}
+  async function refreshGmail(mode='inbox',query=''){
+    if(!gmailConnected){$('gmail-results').textContent='Connect Gmail using local OAuth setup to read mail.';return}
+    try{const result=await api('/api/gmail/list',{mode,query,limit:20});$('gmail-results').replaceChildren();
+      for(const item of result.messages){const card=document.createElement('article');card.className='gmail-item';card.setAttribute('role','listitem');
+        const title=document.createElement('strong');title.textContent=item.subject;const from=document.createElement('small');from.textContent=item.from+' · '+(item.unread?'UNREAD':'READ');
+        const snippet=document.createElement('p');snippet.textContent=item.snippet;const controls=document.createElement('div');controls.className='j-row';
+        const open=document.createElement('button');open.textContent='Open';open.onclick=()=>openGmailThread(item.thread_id);
+        const summary=document.createElement('button');summary.textContent='Summarize';summary.onclick=()=>summarizeGmail(item.thread_id);
+        const reply=document.createElement('button');reply.textContent='Reply draft';reply.onclick=()=>{currentGmailThread=item.thread_id;$('gmail-compose').hidden=false;$('gmail-subject').value=item.subject.startsWith('Re:')?item.subject:'Re: '+item.subject;$('gmail-to').value=item.from};
+        controls.append(open,summary,reply);card.append(title,from,snippet,controls);$('gmail-results').append(card)}
+      if(!result.messages.length)$('gmail-results').textContent='No matching messages.'
+    }catch(e){$('gmail-state').textContent='ERROR';entry(e.message||'Gmail request failed.','assistant')}}
+  async function openGmailThread(threadId){if(!gmailConnected)return;try{currentGmailThread=threadId;const result=await api('/api/gmail/thread',{thread_id:threadId});
+    $('gmail-thread').replaceChildren();for(const message of result.messages){const block=document.createElement('article'),heading=document.createElement('strong'),body=document.createElement('pre');
+      heading.textContent=message.from+' · '+message.subject;body.textContent=message.body||message.snippet;block.append(heading,body);$('gmail-thread').append(block)}}
+    catch(e){entry(e.message||'Gmail thread unavailable.','assistant')}}
+  async function summarizeGmail(threadId){if(!gmailConnected)return;try{const result=await api('/api/gmail/summarize',{thread_id:threadId});
+    entry('Email summary: '+result.summary,'assistant',[],result.warning)}catch(e){entry(e.message||'Gmail summary unavailable.','assistant')}}
+  async function checkGmail(){try{const state=await api('/api/integrations/gmail');setGmailConnected(state.connected,state.state)}
+    catch(_){setGmailConnected(false,'NOT CONNECTED')}}
+  await checkGmail();$('gmail-refresh').onclick=()=>checkGmail();
+  $('gmail-inbox').onclick=()=>refreshGmail('inbox');$('gmail-unread').onclick=()=>refreshGmail('unread');
+  $('gmail-search').onclick=()=>refreshGmail('search',$('gmail-query').value.trim());
+  $('gmail-new-draft').onclick=()=>{if(!gmailConnected)return;currentGmailThread=null;$('gmail-compose').hidden=false;
+    $('gmail-to').value='';$('gmail-subject').value='';$('gmail-body').value='';$('gmail-draft-state').textContent='';$('gmail-send').hidden=true};
+  $('gmail-create-draft').onclick=async()=>{if(!gmailConnected)return;try{const payload={to:$('gmail-to').value,subject:$('gmail-subject').value,body:$('gmail-body').value};
+    const result=currentGmailThread?await api('/api/gmail/reply-draft',{thread_id:currentGmailThread,body:payload.body}):await api('/api/gmail/draft',payload);
+    currentGmailDraft=result.id;$('gmail-draft-state').textContent='Draft saved in Gmail. Review it before sending.';$('gmail-send').hidden=false}
+    catch(e){entry(e.message||'Gmail draft could not be created.','assistant')}};
+  $('gmail-send').onclick=async()=>{if(!gmailConnected||!currentGmailDraft)return;
+    if(!confirm('Send this Gmail draft now? It will leave your account.'))return;
+    try{await api('/api/gmail/send',{draft_id:currentGmailDraft,confirmation:'SEND '+currentGmailDraft});
+      $('gmail-draft-state').textContent='Gmail confirmed the message was sent.';$('gmail-send').hidden=true;currentGmailDraft=null}
+    catch(e){entry(e.message||'Gmail did not confirm sending.','assistant')}};
   $('j-summary').onclick=()=>ask('Summarize this').catch(showError);
   $('j-index').onclick=async()=>{try{status('INDEXING');await api('/api/memory/reindex',{});await refresh();status('IDLE')}catch(e){showError(e)}};
   $('j-embed').onclick=async()=>{try{status('EMBEDDING · SENDING NOTE CHUNKS TO OPENAI');await api('/api/memory/embed',{});await refresh();status('IDLE')}catch(e){showError(e)}};

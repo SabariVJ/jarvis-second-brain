@@ -141,6 +141,8 @@ Original APIs are preserved; GET /api/state was added. New endpoints:
 | POST | /api/vision/camera | Single transient camera frame analysis |
 | GET | /api/focus | Local Focus Lock state |
 | POST | /api/focus/{start,pause,resume,stop} | Explicit local session controls |
+| GET | /api/integrations/gmail | Local OAuth configuration status, no token values |
+| POST | /api/gmail/{list,thread,summarize,draft,reply-draft,send} | On-demand Gmail operations; send requires a separate exact confirmation |
 | GET | /api/memory/status | Counts and extraction errors |
 | POST | /api/memory/reindex | Scan configured root only |
 | POST | /api/memory/embed | Build explicitly enabled cloud vectors |
@@ -181,3 +183,14 @@ not silently trust the content. No autonomous card persistence occurs.
 `GET /api/research/cards?session_id=…` lists a tab's cards; `POST
 /api/research/card` accepts keep, dismiss or save for a card owned by that tab.
 No API credentials means an explicit unavailable response and no card.
+
+## Phase 16: Gmail
+
+The Google OAuth client exchanges a locally configured refresh token for a
+short-lived access token in memory. Secrets are read only from process environment
+variables and never returned by status routes. Gmail access is on demand; messages
+and summaries are not copied into the local brain or persisted. Email text is
+untrusted input. Draft and reply-draft operations create provider-side drafts;
+send additionally checks the exact `SEND <draft-id>` phrase server-side after a
+browser confirmation. The default disconnected state is explicit. See
+`SETUP.md` for local OAuth setup; automated integration coverage uses mocks.

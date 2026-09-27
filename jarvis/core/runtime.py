@@ -12,6 +12,7 @@ from .orchestrator import Orchestrator
 from jarvis.research import WebResearch
 from jarvis.ai.vision import Vision
 from jarvis.focus import FocusLock
+from jarvis.integrations.gmail import GmailAdapter
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -27,6 +28,7 @@ class Runtime:
         self.research = WebResearch(model=self.brain.model)
         self.vision = Vision(model=self.brain.model)
         self.focus = FocusLock(Path(os.environ.get('JARVIS_DATA_DIR', str(Path(root)/'data'))) / 'focus.json')
+        self.gmail = GmailAdapter()
         self.orchestrator = Orchestrator(self.database,self.retrieval,self.graph,self.brain,self.research)
 
     def health(self):
@@ -39,6 +41,17 @@ class Runtime:
             return {**self.health(),'screen_vision_enabled':self.vision.enabled}
         if method == 'GET' and path == '/api/focus':
             return self.focus.status()
+        if method == 'GET' and path == '/api/integrations/gmail': return self.gmail.status()
+        if method == 'POST' and path == '/api/gmail/list':
+            return self.gmail.list_messages(data.get('mode','inbox'),data.get('query',''),data.get('limit',20))
+        if method == 'POST' and path == '/api/gmail/thread': return self.gmail.thread(data.get('thread_id'))
+        if method == 'POST' and path == '/api/gmail/summarize': return self.gmail.summarize(data.get('thread_id'))
+        if method == 'POST' and path == '/api/gmail/draft':
+            return self.gmail.create_draft(data.get('to'),data.get('subject'),data.get('body'))
+        if method == 'POST' and path == '/api/gmail/reply-draft':
+            return self.gmail.reply_draft(data.get('thread_id'),data.get('body'))
+        if method == 'POST' and path == '/api/gmail/send':
+            return self.gmail.send_draft(data.get('draft_id'),data.get('confirmation'))
         if method == 'POST' and path == '/api/focus/start':
             return self.focus.start(data.get('minutes',90),data.get('goal','Focus session'),data.get('allowed_apps'),data.get('distractions'))
         if method == 'POST' and path == '/api/focus/pause': return self.focus.pause()

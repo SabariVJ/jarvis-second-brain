@@ -119,3 +119,13 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(json.loads(self.request('/api/focus/pause',{})[1])['state'],'PAUSED')
         self.assertEqual(json.loads(self.request('/api/focus/resume',{})[1])['state'],'ACTIVE')
         self.assertEqual(json.loads(self.request('/api/focus/stop',{})[1])['state'],'STOPPED')
+
+    def test_gmail_integration_status_and_send_confirmation_route(self):
+        from unittest.mock import Mock
+        server.RUNTIME.gmail=Mock()
+        server.RUNTIME.gmail.status.return_value={'state':'NOT CONNECTED','connected':False}
+        server.RUNTIME.gmail.send_draft.return_value={'id':'sent1','threadId':'t1'}
+        self.assertEqual(json.loads(self.request('/api/integrations/gmail')[1])['state'],'NOT CONNECTED')
+        body={'draft_id':'d1','confirmation':'SEND d1'}
+        self.assertEqual(json.loads(self.request('/api/gmail/send',body)[1])['id'],'sent1')
+        server.RUNTIME.gmail.send_draft.assert_called_once_with('d1','SEND d1')
