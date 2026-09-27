@@ -1,0 +1,32 @@
+:root{color-scheme:dark}
+#brain-toggle{position:fixed;left:28px;top:244px;z-index:8;background:#10231f;color:#a9ffe6;border:1px solid #4e8978;border-radius:24px;padding:12px 20px;cursor:pointer;font:12px ui-monospace,monospace;letter-spacing:.12em}
+#jarvis-panel{position:fixed;right:26px;top:86px;bottom:170px;width:370px;z-index:7;border:1px solid #3d5a50;border-radius:20px;background:rgba(7,16,20,.95);padding:20px;display:flex;flex-direction:column;gap:12px;box-shadow:0 18px 80px #0008;color:#d8e9e2;font:13px/1.55 'Segoe UI',sans-serif}
+#jarvis-panel h2{font:18px ui-monospace,monospace;letter-spacing:.2em;color:#d6fce9}
+#jarvis-panel .sub{font-size:11px;color:#86a69a}
+#jarvis-panel button,#source-reader button,#galaxy button{background:#142c28;color:#c5f8e5;border:1px solid #416556;border-radius:8px;padding:7px 10px;cursor:pointer}
+#jarvis-panel button:disabled{opacity:.4;cursor:wait}
+#jarvis-panel input{width:100%;background:#07100e;color:#e3ffee;border:1px solid #446255;border-radius:10px;padding:12px;font:inherit}
+#jarvis-panel input[type=checkbox]{width:auto}
+#j-status{font:11px ui-monospace,monospace;color:#e5bd76;letter-spacing:.12em}
+#j-log{flex:1;overflow:auto;min-height:90px;white-space:pre-wrap}
+.j-entry{padding:12px 0;border-bottom:1px solid #284038}
+.j-entry.user{color:#93c6b2;font-size:12px}
+.j-sources{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.j-warning{color:#e0b977;font-size:11px;margin-top:8px}
+.j-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#galaxy{position:fixed;inset:70px 414px 150px 205px;z-index:5;background:radial-gradient(ellipse,#10222aee,#03080ef5);border:1px solid #294542;border-radius:22px;overflow:hidden;color:#def5eb}
+#galaxy[hidden],#source-reader[hidden]{display:none}
+#galaxy-canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#galaxy-tools{position:absolute;left:18px;top:16px;right:18px;display:flex;gap:7px;flex-wrap:wrap;z-index:2}
+#galaxy-caption{position:absolute;left:20px;bottom:18px;right:20px;font:11px/1.6 ui-monospace,monospace;color:#93b6ae;pointer-events:none}
+#galaxy-list{position:absolute;left:14px;top:66px;max-height:35%;max-width:190px;overflow:auto;display:flex;flex-direction:column;gap:4px;opacity:.85}
+#galaxy-list button{text-align:left;font-size:10px}
+#galaxy-inspect{position:absolute;right:14px;bottom:70px;left:14px;max-height:28%;overflow:auto;background:#091715e8;border-radius:10px;padding:12px;font-size:12px;white-space:pre-wrap}
+#galaxy-inspect:empty{display:none}
+#source-reader{position:fixed;inset:8vh 12vw;z-index:12;background:#0d1a20;border:1px solid #619e89;border-radius:20px;padding:26px;display:flex;flex-direction:column;gap:14px;color:#e0ede9;box-shadow:0 0 0 100vmax #0009}
+#source-reader pre{flex:1;overflow:auto;white-space:pre-wrap;font:14px/1.8 'Segoe UI',sans-serif}
+#source-reader small{overflow-wrap:anywhere;color:#8bc5ad}
+#source-reader h2{font-size:21px}
+:focus-visible{outline:2px solid #f3cf86;outline-offset:3px}
+@media(max-width:950px){#jarvis-panel{right:10px;width:320px;top:70px;bottom:120px}#galaxy{inset:70px 342px 120px 10px}#brain-toggle{left:20px;top:225px}#galaxy-list{max-width:120px}#ui{gap:5px;flex-wrap:wrap}#ui .chip{padding:6px}#legend{font-size:8px;max-width:95%}}
+@media(max-width:650px){#jarvis-panel{width:calc(100% - 20px);top:52%;bottom:12px}#galaxy{inset:80px 10px 49%}#brain-toggle{top:45px;left:12px}#ring,#legend{display:none}#source-reader{inset:12px}}

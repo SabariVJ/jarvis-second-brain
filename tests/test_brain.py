@@ -65,6 +65,11 @@ class BrainTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.orch.chat('Summarize it',self.ctx,self.state)
         self.assertEqual(self.state.state.value,'ERROR')
 
+    def test_named_summary_does_not_use_previous_selection(self):
+        self.orch.chat('brand voice',self.ctx,self.state)
+        result = self.orch.chat('Summarize SVJ training',self.ctx,self.state)
+        self.assertEqual(result['sources'][0]['title'],'SVJ Training')
+
     def test_astra_contract_citations_and_injection_boundary(self):
         source = self.search.search('brand voice')['results'][0]
         client = Mock(); self.brain.client = client

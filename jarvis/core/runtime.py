@@ -58,12 +58,13 @@ class Runtime:
             if path.endswith('/chat'):
                 return self.orchestrator.chat(data.get('message'),context,state,data.get('selected_id'),bool(data.get('spoken')))
             if path.endswith('/context'):
+                if context.lock.locked(): raise ValueError('Wait for the current response before selecting another source')
                 doc_id = data.get('document_id')
                 if doc_id: self.database.document(doc_id)
                 context.select(doc_id)
                 return {'ok':True,'selected_id':doc_id}
             target = data.get('state')
-            if target not in ('LISTENING','TRANSCRIBING','IDLE','ERROR','INTERRUPTED'):
+            if target not in ('LISTENING','TRANSCRIBING','SPEAKING','IDLE','ERROR','INTERRUPTED'):
                 raise ValueError('Invalid client voice state')
             if context.lock.locked(): raise ValueError('Response is running')
             state.transition(target)

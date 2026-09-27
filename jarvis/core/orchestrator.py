@@ -24,9 +24,9 @@ class Orchestrator:
             selected = context.selection()
             q = re.sub(r'^\s*jarvis[,\s]*','',message.strip(), flags=re.I).lower()
             summary = bool(re.search(r'\b(summarize|summarise|summary|explain)\b',q))
-            followup = bool(re.search(r'\b(this|it|that|related|stored)\b',q))
+            followup = bool(re.search(r'\b(this|it|that)\b',q)) or q.rstrip('.?') in ('show related notes','where is it stored','summarize','summarise','summary')
             sources, mode, warning = [], 'keyword', None
-            if selected and (followup or summary or q.startswith('open')):
+            if selected and followup:
                 d = self.tools.execute('read_document',{'doc_id':selected})['result']
                 sources = [{'document_id':d['id'],'source_id':d['source_id'],'title':d['title'],
                             'path':d['path'],'relative_path':d['relative_path'],'text':d['body'][:80000],
@@ -43,7 +43,7 @@ class Orchestrator:
             node_ids = [s['document_id'] for s in sources]
             if q.startswith('open') and sources:
                 action = 'open'
-                answer = f"Opened in the source reader: {sources[0]['relative_path']}."
+                answer = f"Source ready to open: {sources[0]['relative_path']}."
                 used = sources[:1]
             elif 'stored' in q and sources:
                 answer = sources[0]['path']; used = sources[:1]

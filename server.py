@@ -20,6 +20,7 @@ from urllib.parse import urlsplit, parse_qs, unquote
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from jarvis.core.runtime import Runtime
 from jarvis.security import local_request
+from jarvis.memory.database import stable_id
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("HOLO_PORT", "4890"))
@@ -29,14 +30,15 @@ STATE_LOCK = threading.Lock()
 # the page, cached at boot: long-lived processes on macOS can silently lose file
 # access (TCC) hours in — serving the boot-time copy beats a 500 "missing" page
 try:
-    PAGE_CACHE = [open(os.path.join(ROOT, "holo.html"), "rb").read()]
+    PAGE_CACHE = [Path(ROOT, 'holo.html').read_bytes()]
 except OSError:
     PAGE_CACHE = [None]
 
 def notes_dir():
     try:
-        cfg = json.load(open(os.path.join(ROOT, "holo.json")))
+        cfg = json.loads(Path(ROOT, 'holo.json').read_text(encoding='utf-8-sig'))
         d = os.path.expanduser(cfg.get("folder", ""))
+        if d and not os.path.isabs(d): d = os.path.join(ROOT,d)
         if d and os.path.isdir(d):
             return d
     except Exception:
@@ -45,14 +47,15 @@ def notes_dir():
 
 def _note(path, n):
     try:
-        text = open(path, encoding="utf-8", errors="ignore").read()
+        text = Path(path).read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return None
     lines = [l for l in text.splitlines() if l.strip()]
     title = (lines[0].lstrip("# ").strip() if lines else n)[:48] or n
     rest = [l for l in lines[1:] if not l.startswith("#")]
     return {"name": n, "title": title, "body": "\n".join(rest)[:420],
-            "full": "\n".join(lines[1:])[:4000]}
+            "full": "\n".join(lines[1:])[:4000],
+            "document_id": stable_id('doc', str(Path(path).resolve()))}
 
 def load_notes(limit=18):
     out = []
@@ -98,6 +101,9 @@ class H(BaseHTTPRequestHandler):
         b = body if isinstance(body, bytes) else json.dumps(body).encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Content-Security-Policy', "frame-ancestors 'none'")
+        self.send_header('Referrer-Policy', 'no-referrer')
         if ctype.startswith("text/html"):
             self.send_header("Cache-Control", "no-store")   # a stale cached page hid real fixes once
         self.send_header("Content-Length", str(len(b)))
@@ -105,6 +111,7 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(b)
 
     MIME = {".mjs": "text/javascript", ".js": "text/javascript",
+            ".css": "text/css; charset=utf-8",
             ".wasm": "application/wasm", ".task": "application/octet-stream",
             ".glb": "model/gltf-binary"}
 
@@ -118,6 +125,8 @@ class H(BaseHTTPRequestHandler):
                 if result is not None: return self._send(200, result)
             except ValueError as e:
                 return self._send(400, {"error": str(e)})
+            except Exception:
+                return self._send(500, {'error': 'Operation failed; local data preserved'})
         if parsed.path == '/api/state':
             with STATE_LOCK:
                 try:
@@ -127,7 +136,7 @@ class H(BaseHTTPRequestHandler):
         p = self.path.split("?")[0]
         if p in ("/", "/holo.html"):
             try:
-                body = open(os.path.join(ROOT, "holo.html"), "rb").read()
+                body = Path(ROOT, 'holo.html').read_bytes()
                 PAGE_CACHE[0] = body
             except OSError:
                 body = PAGE_CACHE[0]          # disk access lost (TCC) — serve the boot copy
@@ -151,7 +160,7 @@ class H(BaseHTTPRequestHandler):
                 if os.path.isfile(full):
                     ext = os.path.splitext(full)[1]
                     try:
-                        return self._send(200, open(full, "rb").read(),
+                        return self._send(200, full.read_bytes(),
                                           self.MIME.get(ext, "application/octet-stream"))
                     except OSError:
                         pass
@@ -205,7 +214,17 @@ class H(BaseHTTPRequestHandler):
             return self._send(500, {'error': 'State could not be saved'})
         return self._send(200, {"ok": True})
 
+class LocalServer(ThreadingHTTPServer):
+    # Windows SO_REUSEADDR can accidentally allow two servers on the same port.
+    allow_reuse_address = False
+
+    def server_bind(self):
+        import socket
+        if os.name == 'nt':
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
 if __name__ == "__main__":
     RUNTIME = Runtime(ROOT, notes_dir)
     print(f"HOLO deck on http://localhost:{PORT}  ·  notes: {notes_dir()}")
-    ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()
+    LocalServer(("127.0.0.1", PORT), H).serve_forever()
