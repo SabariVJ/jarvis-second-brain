@@ -1,0 +1,1 @@
+ERROR: WhatsApp Desktop window not found in current session.
