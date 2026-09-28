@@ -103,7 +103,11 @@ runbook or chat.
      restart. Confirm health reports `OFFLINE`/`local` and local extracts work.
 - Pass: real authentication and grounded answer work, any exercised modalities
   are transient, no key appears in output/logs, and offline mode recovers.
-- Current status: **pending** until performed with the user's configured key.
+- Current status: **partial pass**. On 2026-09-28, the configured
+  `gemini-3.5-flash-lite` model authenticated through Astra: a self-contained
+  arithmetic question returned a Gemini answer without note citations, and a
+  selected synthetic note summary returned its validated local source ID.
+  Screen/camera vision and Telegram voice-note acceptance remain pending.
 
 ## 2. Tier B — OpenAI (optional `OPENAI_API_KEY`)
 
@@ -386,9 +390,9 @@ surface you selected.
 - Provider-event source code and mocks are covered by Phase 32b; live source
   firing remains pending until the separate Gmail/Calendar checks in §§3.1 and
   4.1 pass on the user's configured accounts.
-- Gemini provider code and mocks are a separate checkpoint; live Astra, image
-  and voice-note acceptance remain pending until the Gemini Tier B check above
-  is exercised with the user's locally configured key. Review `docs/SETUP.md`:
+- Gemini provider code and mocks are covered by its checkpoint. Live Astra
+  text and source-grounded summary checks partially passed as noted above;
+  live image/vision and Telegram audio remain pending. Review `docs/SETUP.md`:
   Google Free Tier prompts may be used to improve its products.
 - `py server.py` via the native launcher remains unverifiable until the system
   `py` launcher is available on PATH; use `launch.cmd` (documented limitation).

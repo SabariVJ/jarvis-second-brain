@@ -265,3 +265,40 @@ Free Tier data-use policy and advise against sending confidential material.
   run the Gemini Tier B steps in `docs/LIVE_ACCEPTANCE.md`. Do not mark mocked
   results as live provider or physical-device acceptance. No unrelated code
   feature is the next task.
+
+## Gemini live chat request fix — 2026-09-28
+
+Run starts at `cb32e4a986b7f6db7b377d086a54c01379cfbf52`. A sanitized local
+diagnostic reproduced a provider HTTP 400 `INVALID_ARGUMENT` on the Astra
+structured request using the configured `gemini-3.5-flash-lite` model. The
+provider error identified the `additionalProperties` schema hint as unsupported
+for that deployment. A temporary diagnostic read only the error category/status
+and request/response shape; it did not print the key or raw provider body and
+was removed before commit. Replaying the same request after omitting that
+provider-only hint succeeded and returned a valid citation.
+
+The Gemini adapter now omits `additionalProperties` recursively from wire
+schemas. Astra, vision and voice transcription enforce exact allowed response
+keys locally, preserving the closed application contract. Orchestration routes
+only conservative self-contained arithmetic and short conversational phrases
+to AI without note evidence; unrelated selected/retrieved note text is omitted
+from those requests. Other unsupported factual questions remain source-gated,
+and source-backed answers still require real local source IDs.
+
+- Live text: **passed** with locally configured `gemini-3.5-flash-lite`.
+  “What is 2+2?” returned a Gemini-mode answer ending in 4 with no note
+  citations. A selected-source summary of a temporary synthetic note returned
+  Gemini-mode output and the exact selected document ID as its citation. No
+  personal note text was sent in this check.
+- Mocked regression: **141 Python tests + 27 subtests passed**; focused
+  Gemini/Astra/grounding/security/approval/degraded/vision/Telegram/HTTP set:
+  **65 passed + 5 subtests**. Browser: H.O.L.O probe **26/26**, both props,
+  zero page errors. `launch.cmd` started offline with camera and microphone
+  optional; `pip check`, Python compilation, JS syntax and diff checks passed.
+- Diagnostics captured no API key in stdout/stderr. Existing transient image
+  and audio handling is unchanged; their tests remain green. Live vision,
+  Telegram transcription, webcam, microphone and other provider/hardware
+  acceptance remain separately pending.
+- Exact next task: continue only the remaining live acceptance in
+  `docs/LIVE_ACCEPTANCE.md` when the user's corresponding credential or hardware
+  is available; no additional Gemini chat implementation is pending.

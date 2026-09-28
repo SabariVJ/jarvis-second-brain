@@ -18,6 +18,22 @@ MODEL_RE = re.compile(r'^[A-Za-z0-9._-]{1,100}$')
 MAX_RESPONSE_BYTES = 1_000_000
 
 
+def _provider_schema(schema):
+    """Normalize closed objects for model/account combinations that reject this field.
+
+    Some otherwise structured-output-capable Gemini deployments return
+    INVALID_ARGUMENT for JSON Schema's ``additionalProperties`` keyword. The
+    application validates exact result keys locally, so omitting this provider
+    hint does not relax the Astra contract.
+    """
+    if isinstance(schema, dict):
+        return {key: _provider_schema(value) for key, value in schema.items()
+                if key != 'additionalProperties'}
+    if isinstance(schema, list):
+        return [_provider_schema(value) for value in schema]
+    return schema
+
+
 def valid_model_name(model):
     return (isinstance(model, str) and MODEL_RE.fullmatch(model) is not None
             and model.startswith('gemini-') and not contains_secret(model))
@@ -64,7 +80,7 @@ class GeminiAPI:
             if not isinstance(response_schema, dict):
                 raise ValueError('Gemini response schema is invalid')
             generation.update({'responseMimeType': 'application/json',
-                               'responseSchema': response_schema})
+                               'responseSchema': _provider_schema(response_schema)})
         payload = {
             'contents': [{'role': 'user', 'parts': parts}],
             'generationConfig': generation,

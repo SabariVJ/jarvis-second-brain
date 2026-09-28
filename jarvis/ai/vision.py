@@ -83,7 +83,8 @@ class Vision:
                 raise ValueError('Screen analysis did not complete')
             raw = response.output_text
         result = json.loads(raw)
-        if (not isinstance(result, dict) or not isinstance(result.get('answer'), str) or not result['answer'].strip() or
+        if (not isinstance(result, dict) or set(result) != {'answer','observations','caution'} or
+            not isinstance(result.get('answer'), str) or not result['answer'].strip() or
             not isinstance(result.get('observations'), list) or
             any(not isinstance(x,str) or len(x)>240 for x in result['observations']) or
             not isinstance(result.get('caution'), str)):

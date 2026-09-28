@@ -90,7 +90,8 @@ scaled JPEG frame is captured, the display tracks are stopped, and only then is
 the image sent for analysis. The screenshot is bounded, processed in memory and
 never added to notes, chat history or logs. Screen text is untrusted image data;
 vision returns a bounded structured answer and observations, with no tools or
-ability to click controls. Live analysis needs the user's OpenAI configuration.
+ability to click controls. Live analysis uses the currently selected Astra
+provider and remains unavailable when that provider is not configured.
 The optional Jarvis Eyes button uses the same one-frame vision adapter through a
 separate explicit camera permission request. Its visible lifecycle is CAMERA
 READY, ACTIVE, UNAVAILABLE or ERROR; it stops the camera tracks after one frame.
@@ -149,7 +150,10 @@ Gemini is explicit (`AI_PROVIDER=gemini`) and uses the official direct
 `generateContent` REST API with `GEMINI_API_KEY` and `GEMINI_MODEL` (default
 `gemini-3.8-flash`). This model is currently documented as stable, Free Tier,
 multimodal for text/image/audio, and structured-output capable. Gemini requests
-use structured JSON, no tools, bounded output and timeouts. Screen frames and
+use structured JSON, no tools, bounded output and timeouts. Some live Gemini
+model deployments reject JSON Schema's `additionalProperties` keyword, so
+Gemini wire schemas omit it while Astra, vision and transcription validate
+exact output keys locally. Screen frames and
 voice-note audio are sent inline for one request and are not saved or uploaded
 through the provider Files API. Free Tier content may be used by Google to
 improve products; see `SETUP.md` before using confidential sources.
@@ -165,7 +169,11 @@ embeddings remain their separately configured OpenAI features.
 Both Astra adapters keep evidence text in the user data channel, treat sources
 and history as untrusted, expose no model tools, validate citation IDs against
 the retrieved local source IDs, and strip generated URLs. Citation navigation
-is constructed only from database IDs. Selected-note and named-note summaries
+is constructed only from database IDs. A narrow classifier permits
+self-contained arithmetic and casual conversation to use the selected AI
+provider with an empty source list and no citations; unrelated selected-note
+text is not sent. Other factual questions without supporting notes retain the
+no-source response. Selected-note and named-note summaries
 read the full indexed body up to
 80,000 characters with a visible partial-coverage notice above that limit.
 Offline summaries are labelled sentence extracts, not simulated AI output.

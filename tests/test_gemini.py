@@ -63,7 +63,9 @@ class GeminiProviderTests(unittest.TestCase):
             capture.append((request, timeout))
             return FakeResponse({'candidates':[{'finishReason':'STOP','content':{'parts':[{'text':'{"ok":true}'}]}}]})
         api=GeminiAPI('test-gemini-key','gemini-3.8-flash',opener=opener)
-        schema={'type':'object','properties':{'ok':{'type':'boolean'}},'required':['ok'],'additionalProperties':False}
+        schema={'type':'object','properties':{'ok':{'type':'boolean'},
+                'details':{'type':'object','properties':{'label':{'type':'string'}},'additionalProperties':False}},
+                'required':['ok'],'additionalProperties':False}
         raw=api.generate_text([{'text':'untrusted request text'}], 'System instruction.', schema, 128)
         self.assertEqual(raw, '{"ok":true}')
         request,timeout=capture[0]
@@ -76,7 +78,12 @@ class GeminiProviderTests(unittest.TestCase):
         payload=json.loads(request.data)
         self.assertEqual(payload['systemInstruction']['parts'][0]['text'],'System instruction.')
         self.assertEqual(payload['generationConfig']['responseMimeType'],'application/json')
-        self.assertEqual(payload['generationConfig']['responseSchema'],schema)
+        self.assertEqual(payload['generationConfig']['responseSchema'],
+                         {'type':'object','properties':{'ok':{'type':'boolean'},
+                          'details':{'type':'object','properties':{'label':{'type':'string'}}}},
+                          'required':['ok']})
+        self.assertFalse(schema is payload['generationConfig']['responseSchema'])
+        self.assertIs(schema['properties']['details']['additionalProperties'],False)
         self.assertNotIn('tools',payload)
 
     def test_malformed_or_incomplete_remote_results_are_generic(self):
@@ -126,6 +133,77 @@ class GeminiProviderTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     brain.answer('Find a source',[{'document_id':'doc_1','title':'Source','text':'Evidence.'}])
 
+    def test_self_contained_answers_allow_empty_citations_but_keep_exact_local_contract(self):
+        api=Mock();api.generate_text.return_value=json.dumps({'answer':'4','citations':[]})
+        with patch.dict(os.environ, {'AI_PROVIDER':'gemini','GEMINI_API_KEY':'test-gemini-key'}):
+            result=Astra(gemini_api=api).answer('What is 2+2?',[],allow_self_contained=True)
+        self.assertEqual(result,{'answer':'4','citations':[]})
+        self.assertIn('simple arithmetic',api.generate_text.call_args.kwargs['system_instruction'])
+        api.generate_text.return_value=json.dumps({'answer':'4','citations':[],'approved':True})
+        with patch.dict(os.environ, {'AI_PROVIDER':'gemini','GEMINI_API_KEY':'test-gemini-key'}):
+            with self.assertRaisesRegex(ValueError,'invalid'):
+                Astra(gemini_api=api).answer('What is 2+2?',[],allow_self_contained=True)
+            api.generate_text.return_value=json.dumps({'answer':'4','citations':['invented_source']})
+            with self.assertRaisesRegex(ValueError,'citation'):
+                Astra(gemini_api=api).answer('What is 2+2?',[],allow_self_contained=True)
+
+    def test_orchestration_routes_math_and_conversation_without_sources_to_gemini(self):
+        from pathlib import Path
+        import tempfile
+        from jarvis.core.context import Context
+        from jarvis.core.state import StateMachine
+        from jarvis.memory.database import Database
+        from jarvis.memory.embeddings import Embeddings
+        from jarvis.memory.graph import Graph
+        from jarvis.memory.ingestion import Ingestor
+        from jarvis.memory.retrieval import Retrieval
+
+        with tempfile.TemporaryDirectory() as directory:
+            notes=Path(directory)/'notes';notes.mkdir()
+            (notes/'brand.md').write_text('# Brand voice\nUse clear and friendly language.',encoding='utf-8')
+            db=Database(Path(directory)/'brain.sqlite');Ingestor(db).scan(notes)
+            api=Mock()
+            api.generate_text.side_effect=[json.dumps({'answer':'4','citations':[]}),
+                                           json.dumps({'answer':'Hello.','citations':[]})]
+            with patch.dict(os.environ, {'AI_PROVIDER':'gemini','GEMINI_API_KEY':'test-gemini-key'}):
+                brain=Astra(gemini_api=api)
+                orch=Orchestrator(db,Retrieval(db,Embeddings(db)),Graph(db),brain)
+                math=orch.chat('What is 2+2?',Context(),StateMachine())
+                hello=orch.chat('Hello Jarvis.',Context(),StateMachine())
+            self.assertEqual((math['mode'],math['answer'],math['sources']),('astra','4',[]))
+            self.assertEqual((hello['mode'],hello['answer']),('astra','Hello.'))
+            self.assertEqual(api.generate_text.call_count,2)
+            for args,_kwargs in api.generate_text.call_args_list:
+                request=json.loads(args[0][0]['text'])
+                self.assertEqual(request['untrusted_sources'],[])
+
+    def test_orchestration_keeps_source_grounding_and_unmatched_facts_cautious(self):
+        from pathlib import Path
+        import tempfile
+        from jarvis.core.context import Context
+        from jarvis.core.state import StateMachine
+        from jarvis.memory.database import Database
+        from jarvis.memory.embeddings import Embeddings
+        from jarvis.memory.graph import Graph
+        from jarvis.memory.ingestion import Ingestor
+        from jarvis.memory.retrieval import Retrieval
+
+        with tempfile.TemporaryDirectory() as directory:
+            notes=Path(directory)/'notes';notes.mkdir()
+            (notes/'diagnostic.md').write_text('# Integration note\nMarker Blue Lantern; review Friday.',encoding='utf-8')
+            db=Database(Path(directory)/'brain.sqlite');Ingestor(db).scan(notes)
+            with db.connect() as conn: doc_id=conn.execute('SELECT id FROM documents').fetchone()['id']
+            api=Mock();api.generate_text.return_value=json.dumps({'answer':'Review is Friday.','citations':[doc_id]})
+            with patch.dict(os.environ, {'AI_PROVIDER':'gemini','GEMINI_API_KEY':'test-gemini-key'}):
+                orch=Orchestrator(db,Retrieval(db,Embeddings(db)),Graph(db),Astra(gemini_api=api))
+                summary=orch.chat('Summarize this',Context(),StateMachine(),selected_id=doc_id)
+                unsupported=orch.chat('What is the population of Tokyo?',Context(),StateMachine())
+            self.assertEqual(summary['mode'],'astra')
+            self.assertEqual([source['document_id'] for source in summary['sources']],[doc_id])
+            self.assertEqual(unsupported['mode'],'keyword')
+            self.assertIn('could not find a supporting source',unsupported['answer'])
+            self.assertEqual(api.generate_text.call_count,1)
+
     def test_vision_uses_inline_transient_frame_and_structured_schema(self):
         api=Mock()
         api.generate_text.return_value=json.dumps({'answer':'A local editor is visible.',
@@ -148,6 +226,9 @@ class GeminiProviderTests(unittest.TestCase):
         with patch.dict(os.environ, {'AI_PROVIDER':'gemini','GEMINI_API_KEY':'test-gemini-key'}):
             vision=Vision(provider='gemini',gemini_api=api)
             with self.assertRaises(ValueError):vision.analyze_frame('Question',frame)
+            api.generate_text.return_value=json.dumps({'answer':'ok','observations':[],'caution':'none','extra':'reject'})
+            with self.assertRaisesRegex(ValueError,'invalid'):
+                vision.analyze_frame('Question',frame)
         with patch.dict(os.environ, {'AI_PROVIDER':'gemini','GEMINI_API_KEY':''}):
             offline=Vision()
             self.assertFalse(offline.enabled)

@@ -149,6 +149,23 @@ class Orchestrator:
                 node_ids = [n['id'] for n in graph['nodes']]
                 answer = 'Showing source-supported connections. Select an edge to see its evidence.'
                 used = sources
+            elif self._self_contained_request(message) and not summary:
+                # Safe small-talk/calculation requests do not need note evidence.
+                # Do not send unrelated retrieved or currently selected note text.
+                node_ids = []
+                if self.brain.enabled:
+                    try:
+                        result = self.brain.answer(message,[],context.history,spoken,
+                                                   allow_self_contained=True)
+                        answer = result['answer']; used = []; mode = 'astra'
+                    except Exception:
+                        warning = 'AI response unavailable; no source-backed answer was used.'
+                        answer = 'The AI provider is unavailable and no indexed source supports this request.'
+                        used = []; mode = 'local'
+                        state.transition('OFFLINE')
+                else:
+                    answer = 'I could not find a supporting source in the indexed notes. Try another phrase or reindex the notes folder.'
+                    used = []; mode = 'local'
             elif not sources:
                 if personal_memories:
                     answer='From your personal long-term memory (not indexed document knowledge): '+personal_memories[0]['content']
@@ -247,6 +264,20 @@ class Orchestrator:
             self._memory_write('forget_memory',{'memory_id':memory_id},context);context.last_memory_id=None
             return self._finish('I deleted that personal memory.',[],[],state,'personal_memory',None)
         return None
+
+    @staticmethod
+    def _self_contained_request(message):
+        raw = re.sub(r'^\s*jarvis[,\s]*','',message.strip(),flags=re.I).casefold()
+        arithmetic = re.fullmatch(
+            r"(?:(?:what is|what's|calculate|compute)\s+)?"
+            r"[-+]?\d+(?:\.\d+)?(?:\s*(?:\+|-|\*|×|/|÷)\s*[-+]?\d+(?:\.\d+)?)+\s*[?!.]*",
+            raw)
+        conversation = re.fullmatch(
+            r"(?:(?:hi|hello|hey(?: there)?)(?:[, ]+jarvis)?|good (?:morning|afternoon|evening)|"
+            r"thanks?(?: jarvis)?|thank you(?: jarvis)?|how are you(?: today)?|"
+            r"what(?:'s| is) your name|who are you|tell me a joke)\s*[?!.]*",
+            raw)
+        return arithmetic is not None or conversation is not None
 
     @staticmethod
     def _windows_intent(message):
