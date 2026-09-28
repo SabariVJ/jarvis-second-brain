@@ -1,4 +1,4 @@
-# JARVIS build progress — continuation through Phase 31, 2026-09-28
+# JARVIS build progress — continuation through Phase 32a, 2026-09-28
 
 Branch: `jarvis-second-brain`.
 Phase 22–31 run start SHA: `169d50e08a14823622d2a586035eb688054944ef`.
@@ -148,6 +148,34 @@ could not be retrieved; validation uses the supplied written specification.
 The exact final delivery SHA is recorded in the sibling `../FINAL_HANDOFF.md`
 after the final commit, avoiding a self-referential commit hash. `git rev-parse
 HEAD` is authoritative. All validated source and documentation are committed.
+
+## Phase 32a checkpoint — Live Acceptance Runbook (documentation only), 2026-09-28
+
+Docs-only checkpoint, committed on top of the unchanged Phase 31 code baseline
+`f8d6077`.
+
+- Added `docs/LIVE_ACCEPTANCE.md`: the Phase 32a runbook separating three
+  validation tiers — (A) mocked tests (already green), (B) live credential
+  tests (OpenAI, Gmail OAuth, Calendar OAuth, Telegram), and (C) physical
+  hardware tests (microphone wake/interruption/echo/mute release, webcam
+  Jarvis Eyes, live screen capture + vision, Windows foreground monitoring /
+  Focus Lock) — each with the exact existing command or test to re-run and
+  explicit pass criteria and negative gate checks.
+- `docs/MASTER_SPEC.md` was verified to exist and is referenced (not modified)
+  as the acceptance-form target for the user's live pass.
+- **No production code changed.** No .py, .js, HTML, runtime, integration,
+  security, automation or UI file was touched. No packages were installed and
+  no credentials or secrets were added. Validation was performed with the
+  existing local suite only.
+- **Live acceptance is still pending and must not be reported complete.**
+  Every Tier B (live credential) and Tier C (physical hardware) item in the
+  runbook remains unexecuted; they require the user's own accounts and devices,
+  configured locally per `docs/SETUP.md`. The Phase 31 pending list is
+  unchanged: Telegram token/allowlist, optional OpenAI key, Gmail/Calendar
+  OAuth, microphone/acoustic echo, live screen vision, physical webcam, and
+  live Windows foreground monitoring.
+- Exact next task: **await the user's live acceptance pass (or a Phase 32b
+  specification) before any further code change.**
 
 ## Phase 31 final acceptance — 2026-09-28
 
