@@ -144,10 +144,29 @@ hash vectors are not presented as semantics. OpenAI embeddings require explicit
 JARVIS_EMBEDDINGS=openai and a button/API action to upload chunks. Query embedding
 then happens during search. Changed sources need semantic reindexing too.
 
-Default brain is `gpt-6-astra`, configured via JARVIS_MODEL. Official Python SDK
-Responses API, structured JSON answer/citations, store=False, bounded output,
-timeouts, at most one retry. Citation navigation is constructed only from database
-IDs. Selected-note and named-note summaries read the full indexed body up to
+The Astra contract can select Gemini, OpenAI, or offline through `AI_PROVIDER`.
+Gemini is explicit (`AI_PROVIDER=gemini`) and uses the official direct
+`generateContent` REST API with `GEMINI_API_KEY` and `GEMINI_MODEL` (default
+`gemini-3.8-flash`). This model is currently documented as stable, Free Tier,
+multimodal for text/image/audio, and structured-output capable. Gemini requests
+use structured JSON, no tools, bounded output and timeouts. Screen frames and
+voice-note audio are sent inline for one request and are not saved or uploaded
+through the provider Files API. Free Tier content may be used by Google to
+improve products; see `SETUP.md` before using confidential sources.
+
+The existing optional OpenAI Responses integration remains available through
+`AI_PROVIDER=openai` and `OPENAI_API_KEY`; its `store=False`, structured JSON,
+bounded output and timeout behavior are unchanged. Gemini failure never falls
+through to another remote provider. Missing/invalid provider configuration uses
+the labelled local extractive fallback. An absent `AI_PROVIDER` retains the
+legacy OpenAI-key-only behavior, otherwise it is offline. Research and semantic
+embeddings remain their separately configured OpenAI features.
+
+Both Astra adapters keep evidence text in the user data channel, treat sources
+and history as untrusted, expose no model tools, validate citation IDs against
+the retrieved local source IDs, and strip generated URLs. Citation navigation
+is constructed only from database IDs. Selected-note and named-note summaries
+read the full indexed body up to
 80,000 characters with a visible partial-coverage notice above that limit.
 Offline summaries are labelled sentence extracts, not simulated AI output.
 

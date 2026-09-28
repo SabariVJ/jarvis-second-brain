@@ -323,6 +323,8 @@ const base=process.env.HOLO_BASE_URL||'http://127.0.0.1:4890';
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(result)})});
     await page.locator('#gmail-inbox').click();await page.waitForFunction(()=>document.querySelector('.gmail-item'));
     await page.locator('#gmail-unread').click();await page.locator('#gmail-query').fill('from:person@example.com');await page.locator('#gmail-search').click();
+    const gmailDeadline=Date.now()+1500;
+    while(gmailCalls.length<3&&Date.now()<gmailDeadline)await page.waitForTimeout(25);
     assert.deepEqual(gmailCalls.slice(0,3).map(c=>c.body.mode),['inbox','unread','search']);
     await page.locator('#gmail-card').getByRole('button',{name:'Open',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#gmail-thread').textContent.includes('release deadline'));
     await page.getByRole('button',{name:'Summarize',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#j-log').textContent.includes('Email summary: The deadline is Friday.'));

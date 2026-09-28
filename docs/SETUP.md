@@ -63,24 +63,75 @@ pypdf; scanned PDFs need external OCR. Index and history are in ignored data/.
 Changing holo.json does not make its path a secret; avoid committing personal paths.
 Graph and source reader show indexed snapshots: reindex after external edits.
 
-## OpenAI — user action required for live validation
+## Live AI provider — Gemini or optional OpenAI
 
-No key was found and no live requests were made. Create/use an API key privately
-in the OpenAI Platform; do not paste it into chat or source files. Set it in the
-launching process or your preferred secure environment configuration. Example
-PowerShell input that does not echo the secret:
+The Astra interface defaults to local/offline behavior unless a provider is
+configured. To use the currently documented stable Free Tier model, configure
+Gemini explicitly. Google documents `gemini-3.8-flash` as generally available,
+with text, image and audio inputs and structured output. The app calls Google's
+official `generateContent` REST API directly; it does not treat the Responses
+API as Gemini-compatible. Normal Astra chat, one-shot vision and Telegram
+voice-note transcription do not require OpenAI billing or `OPENAI_API_KEY`.
+
+Enter the key privately in the PowerShell process that launches Jarvis. This
+prompt does not echo the key, and Jarvis does not load `.env` files:
 
 ```powershell
-$secureKey = Read-Host 'OpenAI API key (local only)' -AsSecureString
-$env:OPENAI_API_KEY = [System.Net.NetworkCredential]::new('', $secureKey).Password
+$secureGeminiKey = Read-Host 'Gemini API key (local only)' -AsSecureString
+$env:GEMINI_API_KEY = [System.Net.NetworkCredential]::new('', $secureGeminiKey).Password
+$env:AI_PROVIDER = 'gemini'
+$env:GEMINI_MODEL = 'gemini-3.8-flash'
+.\launch.cmd
+```
+
+Do not put the key in chat, source files, notes, screenshots, `.env` files or
+Git. The child process inherits the environment; remove the key from the shell
+when finished. `GET /api/health` reports `ai_provider: GEMINI`, the selected
+model, and `mode: configured` without returning credentials. Integrations /
+Settings shows **ASTRA / AI** as CONFIGURED; this reports local setup, not a
+successful live authentication. For an end-to-end check, ask a
+question supported by an indexed note, then verify that the returned citation
+opens that exact local source. A live image check is one-shot and only occurs
+after you explicitly choose a screen or camera frame.
+
+**Free Tier privacy and limits:** Google's current pricing page lists standard
+Gemini 3.8 Flash input/output as free, but per-project request/token limits vary
+and can change; check Google AI Studio for the account's live limits. Google
+states that Free Tier content may be used to improve its products. Requests can
+include your question, recent chat context and selected retrieved note text;
+vision/audio requests also include the one-shot image/audio payload. Do not
+connect confidential notes, sensitive screens or private voice notes to the Free
+Tier unless that data-use policy is acceptable. Paid-tier API data is listed as
+not used to improve products, but may incur charges. Jarvis does not enable
+Google Search grounding; citations remain local source IDs.
+
+Gemini outages, missing credentials or invalid provider configuration do not
+switch silently to OpenAI: Jarvis uses its existing local extractive fallback.
+To force offline mode, set `AI_PROVIDER` to `offline` and clear the key in that
+shell before starting another instance:
+
+```powershell
+$env:AI_PROVIDER = 'offline'
+Remove-Item Env:\GEMINI_API_KEY -ErrorAction SilentlyContinue
+.\launch.cmd
+```
+
+OpenAI remains optional and requires explicit selection if `AI_PROVIDER` is
+set. To use the existing Responses integration, set `AI_PROVIDER=openai` and
+configure `OPENAI_API_KEY` privately without echoing it:
+
+```powershell
+$secureOpenAIKey = Read-Host 'OpenAI API key (local only)' -AsSecureString
+$env:OPENAI_API_KEY = [System.Net.NetworkCredential]::new('', $secureOpenAIKey).Password
+$env:AI_PROVIDER = 'openai'
 $env:JARVIS_MODEL = 'gpt-6-astra'
 .\launch.cmd
 ```
 
-The app reads environment variables; it does not automatically load .env files.
-Setting the key enables sending the request, recent in-memory context and selected
-retrieved note text to OpenAI for answers. `store=False` is requested; this is not
-a promise about all provider retention. API usage may incur charges.
+Set `JARVIS_MODEL` if needed. If
+`AI_PROVIDER` is absent, an existing OpenAI-key-only setup retains its prior
+behavior; Gemini is always an explicit choice. A Gemini error never falls back
+to OpenAI.
 
 For semantic search, additionally set before launch:
 
@@ -98,14 +149,24 @@ lexical overlap, verify the correct path, select a note, summarize it, inspect
 citations and test recovery after disconnecting internet. A configured key is not
 the same as a verified account/model connection.
 
-Phase 10 research also uses the same configured OpenAI key. Ask “Research current
+Phase 10 live research remains a separate OpenAI Responses integration and
+still requires `OPENAI_API_KEY`, even when Gemini serves Astra. Ask “Research current
 alternatives to X” by text or optional browser voice. The hosted `web_search`
 tool may incur additional charges. Cards cite clickable sources and remain
 temporary; Keep pins one for this tab, while Save to brain explicitly indexes it
 locally. With no key, research reports unavailable and local notes still work.
 Live research quality and source coverage require an authorized account test.
 
-Official references checked 2026-09-27:
+Official Gemini references checked 2026-09-28:
+- https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash
+- https://ai.google.dev/gemini-api/docs/pricing
+- https://ai.google.dev/gemini-api/docs/openai
+- https://ai.google.dev/gemini-api/docs/partner-integration
+- https://ai.google.dev/gemini-api/docs/structured-output
+- https://ai.google.dev/gemini-api/docs/generate-content/image-understanding
+- https://ai.google.dev/gemini-api/docs/generate-content/audio
+
+Official OpenAI references checked 2026-09-27:
 - https://developers.openai.com/api/docs/models/gpt-6-astra
 - https://developers.openai.com/api/docs/quickstart
 
@@ -121,10 +182,12 @@ Screen analysis starts from an explicit screen question or the “Explain curren
 screen once” button. The browser chooser asks which monitor, window or tab to
 share. Jarvis captures one scaled JPEG frame, stops the display tracks, and sends
 the frame for analysis. It does not save the screenshot in notes or history.
-This uses the configured OpenAI API key and can incur usage charges. On-screen
-text is treated as untrusted data; Jarvis cannot click controls. Browser tests use
-a generated fixture image and do not open the real screen chooser.
-The image adapter follows the [Responses API image input guide](https://developers.openai.com/api/docs/guides/images-vision).
+This uses the currently selected Astra provider; Gemini's Free Tier has the
+data-use limitation above. On-screen text is treated as untrusted data; Jarvis
+cannot click controls. Browser tests use a generated fixture image and do not
+open the real screen chooser. The OpenAI adapter follows the [Responses API
+image input guide](https://developers.openai.com/api/docs/guides/images-vision);
+Gemini uses inline image parts in `generateContent`.
 
 The optional “Look at this once” control requests camera access only after a
 click or an explicit camera question. It captures one frame, stops camera tracks,
@@ -212,7 +275,9 @@ polling. The token is never shown in the UI or returned by the status route.
 Do not put bot tokens in chat, source files, notes, or screenshots.
 
 Voice notes are downloaded in memory, capped at 10 MB, transcribed only when a
-local OpenAI key is configured, and discarded after the reply. Telegram does
+live Astra provider is configured, and discarded after the reply. Gemini sends
+the bounded audio inline to `generateContent`; it does not upload to the Gemini
+Files API. OpenAI uses its existing transcription endpoint. Telegram does
 not access the H.O.L.O camera or activate browser microphone listening. Generated
 file sharing requires both local approval on the document card and an exact
 `SHARE <document-id>` reply in Telegram; files outside Jarvis's generated

@@ -162,7 +162,7 @@ class Orchestrator:
                     answer = result['answer']; used = [s for s in sources if s['document_id'] in result['citations']]
                     mode = 'astra'
                 except Exception:
-                    warning = 'OpenAI response unavailable or ungrounded; using a local extract.'
+                    warning = 'AI response unavailable or ungrounded; using a local extract.'
                     answer = self._local(sources,summary); used = sources[:1] if summary else sources
                     mode = 'local'
                     state.transition('OFFLINE')

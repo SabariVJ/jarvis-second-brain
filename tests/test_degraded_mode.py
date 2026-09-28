@@ -42,7 +42,7 @@ class DegradedModeTests(unittest.TestCase):
             graph=runtime.graph.snapshot()
             self.assertTrue(graph['nodes']);self.assertTrue(runtime.health()['ok'])
             settings=runtime.settings_status();by_name={item['name']:item for item in settings['integrations']}
-            self.assertEqual(by_name['OPENAI / ASTRA']['status'],'ACTION REQUIRED')
+            self.assertEqual(by_name['ASTRA / AI']['status'],'ACTION REQUIRED')
             self.assertEqual(by_name['GMAIL']['status'],'ACTION REQUIRED')
             self.assertEqual(by_name['CALENDAR']['status'],'ACTION REQUIRED')
             self.assertEqual(by_name['TELEGRAM']['status'],'DISABLED')

@@ -19,7 +19,6 @@ from jarvis.memory.long_term import LongTermMemory
 from jarvis.integrations.telegram import TelegramAdapter
 from .context import Context
 from .state import StateMachine
-from io import BytesIO
 from jarvis.documents import DocumentAutomation
 from jarvis.tools import Tool
 from jarvis.approvals import ApprovalEngine
@@ -40,8 +39,14 @@ class Runtime:
         self.embeddings = Embeddings(self.database)
         self.retrieval = Retrieval(self.database, self.embeddings)
         self.brain = Astra()
-        self.research = WebResearch(model=self.brain.model)
-        self.vision = Vision(model=self.brain.model)
+        # Web research remains its existing OpenAI Responses integration and
+        # must not inherit a Gemini model ID from the Astra provider.
+        research_model = os.environ.get('JARVIS_RESEARCH_MODEL')
+        if not research_model:
+            research_model = os.environ.get('JARVIS_MODEL', 'gpt-6-astra') if self.brain.provider == 'openai' else 'gpt-6-astra'
+        self.research = WebResearch(model=research_model)
+        self.vision = Vision(model=self.brain.model, provider=self.brain.provider,
+                             gemini_api=self.brain.gemini_api)
         self.focus = FocusLock(Path(os.environ.get('JARVIS_DATA_DIR', str(Path(root)/'data'))) / 'focus.json')
         self.gmail = GmailAdapter()
         self.calendar = CalendarAdapter()
@@ -177,7 +182,8 @@ class Runtime:
     def health(self):
         return {'ok': True, 'service': 'Jarvis', 'camera_required': False,
                 'microphone_required': False, 'mode': 'configured' if self.brain.enabled else 'local',
-                'model':self.brain.model, 'embeddings_enabled':self.embeddings.enabled}
+                'model':self.brain.model, 'ai_provider':self.brain.provider_name,
+                'embeddings_enabled':self.embeddings.enabled}
 
     def settings_status(self):
         try:
@@ -191,13 +197,17 @@ class Runtime:
             ('open_application','open_file','open_folder','open_url','get_active_application','get_active_window','set_volume'))
         provider_sources=self.provider_events.status()
         integrations=[
-            {'name':'OPENAI / ASTRA','status':'CONNECTED' if self.brain.enabled else 'ACTION REQUIRED',
-             'detail':self.brain.model if self.brain.enabled else 'Configure an API key locally for live Astra.'},
+            {'name':'ASTRA / AI','status':'CONFIGURED' if self.brain.enabled else 'ACTION REQUIRED',
+             'detail':(f'{self.brain.provider_name} · {self.brain.model}' if self.brain.enabled else
+                 ('Set AI_PROVIDER=gemini and GEMINI_API_KEY locally; no OpenAI billing is required.'
+                  if self.brain.provider == 'gemini' else
+                  'Set AI_PROVIDER and its provider key locally; Jarvis remains available offline.'))},
             {'name':'SECOND BRAIN','status':database_state,'detail':f'{sources} indexed source(s); SQLite quick check '+('passed' if database_ok else 'failed')},
             {'name':'VOICE','status':'ACTION REQUIRED','detail':'Browser speech support and microphone permission are checked only after you press Use browser voice.'},
             {'name':'WAKE WORD','status':'DISABLED','detail':'Opt-in per browser tab. Microphone access is released when disabled.'},
-            {'name':'SCREEN','status':'CONNECTED' if self.vision.enabled else 'ACTION REQUIRED',
-             'detail':'One-shot capture is user initiated; screenshots are not stored.' if self.vision.enabled else 'Configure authorized vision access locally; capture remains opt-in.'},
+            {'name':'SCREEN','status':'CONFIGURED' if self.vision.enabled else 'ACTION REQUIRED',
+             'detail':('One-shot capture uses '+self.brain.provider_name+'; images are transient.' if self.vision.enabled
+                       else 'Configure the selected AI provider locally; capture remains opt-in.')},
             {'name':'CAMERA','status':'ACTION REQUIRED','detail':'Optional. Availability is checked after Look at this once; startup never requests camera access.'},
             {'name':'FOCUS LOCK','status':'CONNECTED' if focus.get('monitor_supported') else 'ACTION REQUIRED',
              'detail':focus.get('state','IDLE')+' · '+('local timer and foreground monitor ready' if focus.get('monitor_supported') else 'local timer available; foreground monitor unavailable')},
@@ -459,7 +469,4 @@ class Runtime:
         return self.orchestrator.chat(message,context,state,capture_memories=False,origin='telegram')
 
     def _transcribe_telegram_voice(self,audio,filename):
-        if not self.brain.enabled:raise ValueError('Voice transcription is not connected')
-        response=self.brain.client.audio.transcriptions.create(model=os.environ.get('JARVIS_TELEGRAM_TRANSCRIBE_MODEL','gpt-4o-mini-transcribe'),
-            file=(filename,BytesIO(audio),'audio/ogg'))
-        return getattr(response,'text','')
+        return self.brain.transcribe_audio(audio, filename)

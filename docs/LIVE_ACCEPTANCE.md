@@ -6,16 +6,17 @@ file may be reported complete until its checks pass on the user's own accounts
 and devices (AGENTS.md: do not mark untested live integration or physical
 hardware behavior complete).
 
-Phase 31 (checkpoint `f8d6077`) is the validated code baseline. Phase 32b adds
-explicitly enabled, read-only Gmail and Calendar event sources; their live
-account behavior remains untested. This runbook adds no credentials.
+Phase 32b is the provider-event baseline; Gemini Astra code and mocked
+validation are implemented at the current checkpoint. Live credentials and
+device checks remain separate from mocked validation. This runbook adds no
+credentials.
 
 ## 0. Ground rules and tier separation
 
 All validation work belongs to exactly one of three tiers. Never mix results
 across tiers, and never treat a lower-tier pass as evidence for a higher tier.
 
-- **Tier A — mocked tests (already green at Phase 31).** Fully offline, no
+- **Tier A — mocked tests (current Gemini-provider checkpoint green).** Fully offline, no
   accounts, no hardware, no side effects. Re-runnable any time.
 - **Tier B — live credential tests (pending).** Real providers using credentials
   the user configures locally. Requests may incur charges and writes reach real
@@ -43,16 +44,16 @@ From the repository root:
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-Expected: `126 passed, 27 subtests passed`. This is the Phase 32b mocked
+Expected: `138 passed, 27 subtests passed`. This is the Gemini-provider mocked
 result; any other outcome means the environment or code drifted — stop and
 reconcile before any Tier B/C work.
 
 Browser regression (second terminal; keep this instance **offline-configured**:
-sample notes, no credentials) — from `docs/SETUP.md`:
+sample notes, no credentials; `tests/conftest.py` forces Python tests offline) —
+from `docs/SETUP.md`:
 
 ```powershell
 .\launch.cmd
-npm install
 npm run test:browser
 ```
 
@@ -68,8 +69,41 @@ curl http://127.0.0.1:4890/api/health
 ```
 
 Expected: `"ok": true`, `"camera_required": false`, `"microphone_required":
-false`, and `"mode": "local"` without an OpenAI key (Tier A) or `"mode":
-"configured"` once the key is set (Tier B §2).
+false`, `"mode": "local"`, and `"ai_provider": "OFFLINE"` for Tier A. With a
+locally selected live provider, `mode` is `configured`; `ai_provider` reports
+the selection but does not prove authentication until a real request succeeds.
+
+## Gemini Tier B — Astra provider
+
+This path uses `AI_PROVIDER=gemini`, local `GEMINI_API_KEY`, and
+`GEMINI_MODEL=gemini-3.8-flash` by default. The model currently appears in
+Google's official model list as stable, supports text/image/audio inputs and
+structured output, and is listed with free standard input/output. Per-project
+limits vary. Google's Free Tier may use submitted content to improve products;
+avoid private notes, confidential screens and voice clips unless that policy is
+acceptable. See `docs/SETUP.md` for details. Do not paste the key into this
+runbook or chat.
+
+- Mocked rerun: `.venv\Scripts\python.exe -m pytest tests/test_gemini.py tests/test_brain.py tests/test_vision.py -q`
+- Live steps:
+  1. Configure the key in the launching shell, select Gemini and start Jarvis.
+     Confirm `/api/health` reports `ai_provider: GEMINI` and Settings says
+     CONFIGURED. These fields only show local configuration.
+  2. Ask a question answerable from a safe test note. Verify the citation opens
+     the matching local document and the source ID is one returned by retrieval.
+  3. Ask an unsupported question. Expect the honest no-source/local behavior;
+     model content must not create tools or approvals. Confirm no URL is added.
+  4. If available, explicitly share one screen frame and ask a visual question.
+     Confirm useful analysis and that no frame exists in local history, notes or
+     data directories after the request.
+  5. If Telegram is configured, send a short voice note from an allowlisted
+     private account. Confirm it transcribes, the audio is discarded, and the
+     transcript uses the existing chat and approval boundaries.
+  6. Stop that instance, set `AI_PROVIDER=offline`, clear `GEMINI_API_KEY`, and
+     restart. Confirm health reports `OFFLINE`/`local` and local extracts work.
+- Pass: real authentication and grounded answer work, any exercised modalities
+  are transient, no key appears in output/logs, and offline mode recovers.
+- Current status: **pending** until performed with the user's configured key.
 
 ## 2. Tier B — OpenAI (optional `OPENAI_API_KEY`)
 
@@ -82,8 +116,9 @@ $env:JARVIS_MODEL = 'gpt-6-astra'
 .\launch.cmd
 ```
 
-Confirm §1 health now reports `"mode": "configured"`, and the settings panel
-shows OPENAI / ASTRA as CONNECTED. API usage may incur charges.
+Confirm §1 health now reports `"mode": "configured"`, and Settings shows the
+selected Astra provider as CONFIGURED. Configuration is not proof of live
+authentication. API usage may incur charges.
 
 ### 2.1 Grounded answers
 
@@ -118,9 +153,9 @@ shows OPENAI / ASTRA as CONNECTED. API usage may incur charges.
 
 ### 2.3 Voice-note transcription (Telegram path)
 
-Requires §5 Telegram configured **and** the OpenAI key; the transcriber is wired
-only when Astra is enabled (`JARVIS_TELEGRAM_TRANSCRIBE_MODEL` defaults to
-`gpt-4o-mini-transcribe`).
+Requires §5 Telegram configured and a selected Astra provider. Gemini uses
+bounded inline audio with `generateContent` and does not upload it through the
+Files API; OpenAI retains its existing transcription endpoint.
 
 - Mocked rerun: `.venv\Scripts\python.exe -m pytest tests/test_telegram.py -q`
 - Live steps: from an allowlisted private-chat account send a short voice note
@@ -341,7 +376,7 @@ surface you selected.
   passed, citing tier and date. Per AGENTS.md, untested live integration or
   physical-hardware behavior must not be marked complete.
 - Re-run §1 after any configuration change: the mocked suite must remain
-  126 passed + 27 subtests with zero browser page errors regardless of Tier B/C
+  138 passed + 27 subtests with zero browser page errors regardless of Tier B/C
   outcomes.
 
 ## 8. Explicitly out of scope
@@ -351,5 +386,9 @@ surface you selected.
 - Provider-event source code and mocks are covered by Phase 32b; live source
   firing remains pending until the separate Gmail/Calendar checks in §§3.1 and
   4.1 pass on the user's configured accounts.
+- Gemini provider code and mocks are a separate checkpoint; live Astra, image
+  and voice-note acceptance remain pending until the Gemini Tier B check above
+  is exercised with the user's locally configured key. Review `docs/SETUP.md`:
+  Google Free Tier prompts may be used to improve its products.
 - `py server.py` via the native launcher remains unverifiable until the system
   `py` launcher is available on PATH; use `launch.cmd` (documented limitation).

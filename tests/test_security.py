@@ -20,5 +20,10 @@ class SecurityTests(unittest.TestCase):
             self.assertNotIn(secret,filtered)
         self.assertEqual(redact('The key of the story is clarity.'),'The key of the story is clarity.')
 
+    def test_credential_assignments_are_redacted_before_external_provider_requests(self):
+        filtered=redact('Password: synthetic-value GEMINI_API_KEY=another-synthetic-value')
+        self.assertNotIn('synthetic-value',filtered)
+        self.assertEqual(filtered.count('[REDACTED]'),2)
+
 
 if __name__=='__main__':unittest.main()

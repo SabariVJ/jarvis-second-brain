@@ -49,7 +49,7 @@ class HTTPTests(unittest.TestCase):
         self.assertIn('Local extract',json.loads(self.request('/api/jarvis/chat',{'session_id':sid,'message':'summarize this'})[1])['answer'])
         self.assertEqual(self.request('/api/jarvis/chat',{'message':'no session'})[0],400)
         settings=json.loads(self.request('/api/settings/status')[1]);names={item['name'] for item in settings['integrations']}
-        self.assertTrue({'OPENAI / ASTRA','SECOND BRAIN','VOICE','WAKE WORD','SCREEN','CAMERA','FOCUS LOCK','GMAIL',
+        self.assertTrue({'ASTRA / AI','SECOND BRAIN','VOICE','WAKE WORD','SCREEN','CAMERA','FOCUS LOCK','GMAIL',
             'CALENDAR','TELEGRAM','WINDOWS TOOLS','AUTOMATIONS','GMAIL EVENT SOURCE','CALENDAR EVENT SOURCE'}.issubset(names))
         self.assertTrue(settings['diagnostics']['database_healthy'])
         self.assertNotIn('OPENAI_API_KEY',json.dumps(settings));self.assertNotIn('TELEGRAM_BOT_TOKEN',json.dumps(settings))

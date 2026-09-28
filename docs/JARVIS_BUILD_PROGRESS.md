@@ -1,4 +1,4 @@
-# JARVIS build progress — continuation through Phase 32b, 2026-09-28
+# JARVIS build progress — Gemini provider continuation, 2026-09-28
 
 Branch: `jarvis-second-brain`.
 Phase 22–31 run start SHA: `169d50e08a14823622d2a586035eb688054944ef`.
@@ -228,3 +228,40 @@ Integrations / Settings.
   large production-vault guarantee.
 - Exact Phase 31 SHA is in the sibling `../FINAL_HANDOFF.md`. No Phase 32 task was
   supplied; stop after this checkpoint.
+
+## Gemini provider checkpoint — 2026-09-28
+
+Run starts at Phase 32b commit `fa68e2296187dced2e7e9b34ea0d2888547e0130`.
+This continuation adds Gemini as an explicit live provider behind the existing
+Astra contract. It uses the direct Google `generateContent` REST API because
+the prior implementation depends on OpenAI Responses-only schema and response
+fields; Gemini is not treated as a Responses-compatible endpoint. The selected
+documented stable Free Tier model is `gemini-3.8-flash`, configurable with
+`GEMINI_MODEL`. `AI_PROVIDER=gemini` and `GEMINI_API_KEY` are required; Gemini
+failure stays on local extractive fallback and never switches to another
+external provider. The existing OpenAI contract remains available separately.
+
+Gemini answer JSON is validated against the current local source IDs, URLs are
+removed, credential-shaped values are redacted, and no model tools or action
+authority are provided. The same selected provider handles explicit one-shot
+screen/camera analysis and bounded Telegram voice-note transcription using
+inline image/audio data; frames and audio are not persisted or sent via the
+Gemini Files API. A pytest startup guard forces automated suites to offline mode
+even if a developer has credentials configured. The setup docs call out the
+Free Tier data-use policy and advise against sending confidential material.
+
+- Code: **implemented**. Mocked validation: **138 Python tests + 27 subtests**;
+  focused AI/security/regression selection: **52 passed + 10 subtests**.
+- Browser acceptance: **26/26 probe checks**, both props loaded, zero page
+  errors; simulation and camera-free/microphone-free behavior passed.
+- `launch.cmd`, `pip check`, Python compilation, JavaScript syntax and
+  `git diff --check`: passed.
+- Live Gemini API/authentication: **pending**. `GEMINI_API_KEY` was not
+  configured in this run, so no live call was made. Live source-grounded answer,
+  live screen image analysis and live Telegram audio transcription remain
+  unverified. Physical microphone, webcam and display acceptance also remain
+  separate user checks.
+- Exact next task: when ready, configure the key locally (never in chat) and
+  run the Gemini Tier B steps in `docs/LIVE_ACCEPTANCE.md`. Do not mark mocked
+  results as live provider or physical-device acceptance. No unrelated code
+  feature is the next task.
