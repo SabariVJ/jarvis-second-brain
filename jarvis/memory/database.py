@@ -84,7 +84,18 @@ CREATE TABLE IF NOT EXISTS automation_runs (
  finished_at REAL NOT NULL, trigger_type TEXT NOT NULL, status TEXT NOT NULL,
  result_json TEXT NOT NULL DEFAULT '{}');
 CREATE INDEX IF NOT EXISTS automation_runs_latest ON automation_runs(automation_id,started_at DESC);
-PRAGMA user_version=6;
+CREATE TABLE IF NOT EXISTS provider_event_sources (
+ provider TEXT PRIMARY KEY CHECK(provider IN ('GMAIL','CALENDAR')),
+ enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),
+ initialized INTEGER NOT NULL DEFAULT 0 CHECK(initialized IN (0,1)),
+ status TEXT NOT NULL DEFAULT 'DISABLED' CHECK(status IN ('DISABLED','CONFIGURED','READY','NOT CONNECTED','ERROR')),
+ last_poll REAL, next_poll REAL, last_error TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS provider_event_receipts (
+ provider TEXT NOT NULL CHECK(provider IN ('GMAIL','CALENDAR')),
+ event TEXT NOT NULL CHECK(event IN ('IMPORTANT_EMAIL','CALENDAR_APPROACHING')),
+ source_key TEXT NOT NULL, automation_id TEXT NOT NULL, seen_at REAL NOT NULL,
+ PRIMARY KEY(provider,event,source_key,automation_id));
+CREATE INDEX IF NOT EXISTS provider_event_receipts_latest ON provider_event_receipts(seen_at DESC);
 '''
 
 class Database:
@@ -93,7 +104,7 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version > 6: raise ValueError('Database schema is newer than this application')
+            if version > 7: raise ValueError('Database schema is newer than this application')
             db.executescript(SCHEMA)
             columns={row['name'] for row in db.execute('PRAGMA table_info(memories)')}
             additions={
@@ -112,7 +123,10 @@ class Database:
             db.execute('UPDATE memories SET updated_at=created WHERE updated_at=0')
             db.execute('CREATE INDEX IF NOT EXISTS memory_active_category ON memories(status,category,updated_at DESC)')
             db.execute('CREATE INDEX IF NOT EXISTS memory_normalized ON memories(normalized)')
-            db.execute('PRAGMA user_version=6')
+            # Phase 32b adds only private, bounded provider-source state and
+            # content-free event receipts. CREATE IF NOT EXISTS above upgrades
+            # v6 databases without rewriting existing data.
+            db.execute('PRAGMA user_version=7')
 
     @contextmanager
     def connect(self):

@@ -84,7 +84,7 @@ class LongTermMemoryTests(unittest.TestCase):
         finally:db.close()
         migrated=Database(path);items=LongTermMemory(migrated,lambda:100).search('clear answers')
         self.assertEqual(items[0]['id'],'old');self.assertEqual(items[0]['source']['type'],'document')
-        with migrated.connect() as db:self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],6)
+        with migrated.connect() as db:self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],7)
 
 
 if __name__=='__main__':unittest.main()

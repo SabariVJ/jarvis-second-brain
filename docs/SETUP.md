@@ -287,8 +287,27 @@ active.
 time or choose an allowlisted app event, Focus state, or provider-event hook.
 The server checks schedules every 15 seconds while it is running. Actions only
 create a local notice, prepare a briefing, or inspect local Focus status; they
-cannot send email/Telegram, change Calendar, or approve another action. Gmail
-and Calendar event subscriptions are not polled until a locally authorized
-provider event source is configured. Definitions and bounded run audits are
-stored in the private SQLite database; notification cards are transient in
-memory.
+cannot send email/Telegram, change Calendar, or approve another action.
+
+For Gmail important-email or Calendar approaching-event notices, first create
+and enable a matching provider-event automation rule, then separately enable
+that provider under **Read-only provider event sources**. Both controls start
+off. The Integrations / Settings and Local Automations panels show DISABLED,
+NOT CONNECTED, CONFIGURED, READY, or ERROR; credentials remain in the process
+environment.
+Enabling a source does not itself contact Google. A configured source checks at
+most every five minutes, and it does nothing unless a matching rule is enabled.
+Its first successful check establishes a quiet baseline so existing messages
+and already-due events do not produce a burst of notices.
+
+Gmail detects only inbox message IDs returned by Gmail's IMPORTANT-label search
+within the last 90 days; it does not fetch message details or contents. Calendar
+checks up to 250 upcoming events and supports a 0–1440 minute rule lead time
+(default 60 minutes). Only a content-free identity fingerprint is retained for
+deduplication, bounded to 90 days and 5,000 receipts. These sources never send
+email or mutate Calendar. Disable either source from the same panel to stop
+future checks. Live provider behavior still requires the separate account acceptance in
+`docs/LIVE_ACCEPTANCE.md`; mocks do not verify OAuth or real event timing.
+
+Rule definitions and bounded run audits are stored in the private SQLite
+database; notification cards are transient in memory.

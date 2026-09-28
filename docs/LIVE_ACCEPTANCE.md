@@ -6,8 +6,9 @@ file may be reported complete until its checks pass on the user's own accounts
 and devices (AGENTS.md: do not mark untested live integration or physical
 hardware behavior complete).
 
-Phase 31 (checkpoint `f8d6077`) is the validated code baseline. This runbook
-changes no production code and adds no credentials.
+Phase 31 (checkpoint `f8d6077`) is the validated code baseline. Phase 32b adds
+explicitly enabled, read-only Gmail and Calendar event sources; their live
+account behavior remains untested. This runbook adds no credentials.
 
 ## 0. Ground rules and tier separation
 
@@ -42,9 +43,9 @@ From the repository root:
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-Expected: `116 passed, 27 subtests passed`. This is the Phase 31 result; any
-other outcome means the environment or code drifted — stop and reconcile before
-any Tier B/C work.
+Expected: `126 passed, 27 subtests passed`. This is the Phase 32b mocked
+result; any other outcome means the environment or code drifted — stop and
+reconcile before any Tier B/C work.
 
 Browser regression (second terminal; keep this instance **offline-configured**:
 sample notes, no credentials) — from `docs/SETUP.md`:
@@ -172,6 +173,27 @@ Verify: `curl http://127.0.0.1:4890/api/integrations/gmail` reports
 - Pass: mail is sent only after both gates, Google confirms it, and the ledger
   records EXECUTED with redacted arguments.
 
+### 3.1 Read-only Gmail important-email source (Phase 32b)
+
+This source uses Gmail read-only ID search and never fetches message details,
+drafts or sends mail. It requires the user's configured Gmail OAuth and an
+enabled local `IMPORTANT_EMAIL` rule.
+
+- Mocked rerun: `.venv\Scripts\python.exe -m pytest tests/test_provider_events.py tests/test_gmail.py tests/test_automations.py -q`
+- Live steps:
+  1. Create an enabled local Gmail `IMPORTANT_EMAIL` rule with importance
+     `IMPORTANT`, then explicitly enable **Gmail important-email events**.
+  2. Confirm Settings reports READY after a successful poll. The first check
+     quietly baselines existing important inbox messages.
+  3. After the baseline, receive a private test email and mark it Important.
+     Wait for the next five-minute check; expect one local notification.
+  4. Wait through another poll and confirm no duplicate. Disable the source and
+     confirm the next check does not query Gmail.
+  5. Verify subject, sender, snippet and body are not stored in automation
+     history; only provider/event and an opaque source fingerprint are shown.
+- Pass: one read-only event notice, no repeat, no email send, and the source
+  stops after disable. If account credentials are absent, leave pending.
+
 ## 4. Tier B — Calendar OAuth (create → reschedule → cancel → confirmation gates)
 
 Setup: same OAuth client as §3 with `calendar.events.readonly`,
@@ -193,6 +215,29 @@ Setup: same OAuth client as §3 with `calendar.events.readonly`,
      the server against the exact title/event ID, not by the UI alone.
 - Pass: every mutation passed both gates and was provider-confirmed; test event
   cleaned up.
+
+### 4.1 Read-only Calendar approaching-event source (Phase 32b)
+
+This source is separate from Calendar writes and never creates or changes an
+event. It requires the user's configured Calendar OAuth and an enabled local
+`CALENDAR_APPROACHING` rule. Use a private test event and clean it up outside
+this source check.
+
+- Mocked rerun: `.venv\Scripts\python.exe -m pytest tests/test_provider_events.py tests/test_calendar.py tests/test_automations.py -q`
+- Live steps:
+  1. Create an enabled local Calendar provider-event rule with a short
+     `minutes_before` value, then explicitly enable **Calendar approaching-event
+     events** in Local Automations.
+  2. Confirm Settings reports READY after a successful poll. The first check is
+     a quiet baseline for events already inside the selected lead-time window.
+  3. Add a private confirmed event after that baseline, within the rule's lead
+     time. Wait for the next five-minute check; expect one local notification.
+  4. Wait through another poll and confirm no duplicate. Disable the source and
+     confirm the next check does not query Calendar.
+  5. Verify event title, location and description do not appear in automation
+     history; only provider/event and an opaque source fingerprint are shown.
+- Pass: one read-only event notice, no repeat, no Calendar mutation, and the
+  source stops after disable. If account credentials are absent, leave pending.
 
 ## 5. Tier B — Telegram (token, allowlist, two-step share)
 
@@ -296,15 +341,15 @@ surface you selected.
   passed, citing tier and date. Per AGENTS.md, untested live integration or
   physical-hardware behavior must not be marked complete.
 - Re-run §1 after any configuration change: the mocked suite must remain
-  116 passed + 27 subtests with zero browser page errors regardless of Tier B/C
+  126 passed + 27 subtests with zero browser page errors regardless of Tier B/C
   outcomes.
 
 ## 8. Explicitly out of scope
 
 - Live acceptance changes no code. If a live check exposes a defect, record the
   failure here and stop; fix it as a separate validated checkpoint.
-- Provider-event automation sources (`IMPORTANT_EMAIL`,
-  `CALENDAR_APPROACHING`) have no live poller by design; do not attempt to
-  validate their live firing.
+- Provider-event source code and mocks are covered by Phase 32b; live source
+  firing remains pending until the separate Gmail/Calendar checks in §§3.1 and
+  4.1 pass on the user's configured accounts.
 - `py server.py` via the native launcher remains unverifiable until the system
   `py` launcher is available on PATH; use `launch.cmd` (documented limitation).

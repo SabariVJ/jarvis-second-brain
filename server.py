@@ -254,7 +254,12 @@ if __name__ == "__main__":
             try:
                 RUNTIME.automations.run_due()
             except Exception:
-                # The next bounded tick retries; no provider is polled here.
+                # Local schedules and provider reads fail independently.
+                pass
+            try:
+                RUNTIME.provider_events.run_due()
+            except Exception:
+                # Provider failures never take down local Jarvis operation.
                 pass
     threading.Thread(target=automation_scheduler, daemon=True, name='jarvis-automation-scheduler').start()
     print(f"HOLO deck on http://localhost:{PORT}  ·  notes: {notes_dir()}")

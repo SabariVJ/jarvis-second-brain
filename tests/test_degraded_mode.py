@@ -17,6 +17,7 @@ class DegradedModeTests(unittest.TestCase):
     def test_no_credentials_or_network_keeps_local_brain_available(self):
         env=patch.dict(os.environ,{'JARVIS_DATA_DIR':str(self.root/'data'),'OPENAI_API_KEY':'',
             'JARVIS_EMBEDDINGS':'','GOOGLE_CLIENT_ID':'','GOOGLE_CLIENT_SECRET':'',
+            'JARVIS_GOOGLE_CLIENT_ID':'','JARVIS_GOOGLE_CLIENT_SECRET':'','JARVIS_GOOGLE_REFRESH_TOKEN':'',
             'TELEGRAM_BOT_TOKEN':'','TELEGRAM_ALLOWED_USER_IDS':'','JARVIS_TELEGRAM_ENABLED':'0'})
         env.start();self.addCleanup(env.stop)
         with patch('socket.create_connection',side_effect=AssertionError('network access attempted')):
@@ -27,6 +28,14 @@ class DegradedModeTests(unittest.TestCase):
             self.assertFalse(runtime.telegram.enabled);self.assertFalse(runtime.telegram.configured)
             runtime.gmail.transport=Mock(side_effect=AssertionError('Gmail transport attempted'))
             runtime.calendar.transport=Mock(side_effect=AssertionError('Calendar transport attempted'))
+            runtime.provider_events.configure('GMAIL',True)
+            runtime.provider_events.configure('CALENDAR',True)
+            self.assertEqual(runtime.provider_events.run_due()['polled'],['CALENDAR','GMAIL'])
+            self.assertEqual(runtime.provider_events.status()['GMAIL']['status'],'NOT CONNECTED')
+            self.assertEqual(runtime.provider_events.status()['CALENDAR']['status'],'NOT CONNECTED')
+            runtime.gmail.transport.assert_not_called();runtime.calendar.transport.assert_not_called()
+            runtime.provider_events.configure('GMAIL',False)
+            runtime.provider_events.configure('CALENDAR',False)
             session,context,state=runtime.sessions.get()
             answer=runtime.orchestrator.chat('What have I written about SVJ?',context,state)
             self.assertEqual(answer['mode'],'local');self.assertIn('SVJ rollout',answer['answer'])

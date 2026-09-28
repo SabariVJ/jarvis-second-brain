@@ -39,18 +39,24 @@ async function boot(){
       </section>
       <section id="automation-card" aria-label="Local automations"><h3>LOCAL AUTOMATIONS <span id="automation-state" class="sub">LOADING</span></h3>
         <p class="sub">Rules start disabled. They can create local notices, prepare a briefing, or monitor an active focus session. They cannot send messages or change provider data.</p>
+        <div id="automation-provider-sources" aria-label="Read-only provider event sources">
+          <p class="sub">Provider polling is separately opt-in, read-only, and checked every five minutes. The first successful check establishes a baseline; message and event content is not stored.</p>
+          <label class="sub"><input id="automation-source-gmail" type="checkbox"> Enable Gmail important-email events</label><small id="automation-source-gmail-status" class="sub">DISABLED</small>
+          <label class="sub"><input id="automation-source-calendar" type="checkbox"> Enable Calendar approaching-event events</label><small id="automation-source-calendar-status" class="sub">DISABLED</small>
+        </div>
         <form id="automation-form">
           <input id="automation-name" maxlength="80" placeholder="Automation name" required>
           <label class="sub">Trigger<select id="automation-trigger"><option>TIME</option><option>EVENT</option><option>STATE</option><option>PROVIDER_EVENT</option></select></label>
           <label class="sub" id="automation-time-label">Daily time<input id="automation-time" type="time"></label>
           <label class="sub" id="automation-event-label" hidden>Event<select id="automation-event"></select></label>
           <label class="sub" id="automation-provider-label" hidden>Provider event<select id="automation-provider-event"><option value="GMAIL:IMPORTANT_EMAIL">Gmail · important email</option><option value="CALENDAR:CALENDAR_APPROACHING">Calendar · event approaching</option></select></label>
-          <label class="sub">Importance condition<select id="automation-importance"><option value="">Any importance</option><option>IMPORTANT</option><option>NORMAL</option></select></label>
+          <label class="sub" id="automation-importance-label">Importance condition<select id="automation-importance"><option value="">Any importance</option><option>IMPORTANT</option><option>NORMAL</option></select></label>
+          <label class="sub" id="automation-minutes-label" hidden>Calendar lead time in minutes<input id="automation-minutes" type="number" min="0" max="1440" step="1" placeholder="Default: 60 minutes"></label>
           <label class="sub">Action<select id="automation-action"><option value="LOCAL_NOTIFICATION">Local notification</option><option value="MORNING_BRIEFING">Prepare morning briefing</option><option value="DISTRACTION_MONITOR">Monitor active focus</option></select></label>
           <input id="automation-title" maxlength="100" placeholder="Notification title">
           <textarea id="automation-message" maxlength="500" rows="2" placeholder="Notification message"></textarea>
           <label class="sub"><input id="automation-enabled" type="checkbox"> Enable after saving</label>
-          <div class="j-row"><button id="automation-save" type="submit">Create automation</button><button id="automation-cancel" type="button" hidden>Cancel edit</button><button id="automation-run-due" type="button">Run due schedules now</button></div>
+          <div class="j-row"><button id="automation-save" type="submit">Create automation</button><button id="automation-cancel" type="button" hidden>Cancel edit</button><button id="automation-run-due" type="button">Run due schedules now</button><button id="automation-refresh" type="button">Refresh source status</button></div>
         </form>
         <div id="automation-notifications" role="status" aria-live="polite"></div><div id="automation-items" role="list" aria-live="polite"></div>
         <details><summary>Recent automation audit</summary><div id="automation-runs" role="list"></div></details>
@@ -223,10 +229,25 @@ async function boot(){
   }
   function automationTriggerFields(){const type=$('automation-trigger').value;
     $('automation-time-label').hidden=type!=='TIME';$('automation-event-label').hidden=type!=='EVENT'&&type!=='STATE';
-    $('automation-provider-label').hidden=type!=='PROVIDER_EVENT';automationEventOptions(type,$('automation-event').value)}
+    $('automation-provider-label').hidden=type!=='PROVIDER_EVENT';
+    $('automation-importance-label').hidden=type!=='PROVIDER_EVENT'||!$('automation-provider-event').value.startsWith('GMAIL:');
+    $('automation-minutes-label').hidden=type!=='PROVIDER_EVENT'||!$('automation-provider-event').value.startsWith('CALENDAR:');
+    automationEventOptions(type,$('automation-event').value)}
   $('automation-trigger').onchange=automationTriggerFields;automationTriggerFields();
+  $('automation-provider-event').onchange=automationTriggerFields;
+  const sourceControls={GMAIL:['automation-source-gmail','automation-source-gmail-status'],CALENDAR:['automation-source-calendar','automation-source-calendar-status']};
+  for(const [provider,[controlId,statusId]] of Object.entries(sourceControls))$(controlId).onchange=async event=>{
+    const control=event.currentTarget;control.disabled=true;
+    try{await api('/api/automations/provider-source',{provider,enabled:control.checked});await refreshAutomations();await refreshSettings()}
+    catch(error){control.checked=!control.checked;showError(error)}finally{control.disabled=false}};
   async function refreshAutomations(){const result=await api('/api/automations');automationSnapshot=result;
     const host=$('automation-items');host.replaceChildren();$('automation-state').textContent=`${result.items.length} RULE${result.items.length===1?'':'S'} · LOCAL ONLY`;
+    for(const [provider,[controlId,statusId]] of Object.entries(sourceControls)){
+      const source=result.provider_sources?.[provider]||{enabled:false,status:'DISABLED'};
+      $(controlId).checked=Boolean(source.enabled);
+      $(statusId).textContent=source.status+(source.error?' · '+source.error:'')+
+        (source.last_poll?' · checked '+new Date(source.last_poll*1000).toLocaleString():'');
+    }
     for(const item of result.items){const row=document.createElement('article');row.className='automation-item';row.dataset.id=item.id;
       const title=document.createElement('strong');title.textContent=item.name;
       const detail=document.createElement('small');detail.textContent=`${item.trigger.type} · ${item.trigger.daily_at||item.trigger.event||item.trigger.state||item.trigger.provider+' '+item.trigger.event} · ${item.enabled?'ENABLED':'DISABLED'} · ${item.last_run?'Last run '+new Date(item.last_run*1000).toLocaleString():'Not run yet'}${item.next_run?' · Next '+new Date(item.next_run*1000).toLocaleString():''}`;
@@ -235,7 +256,7 @@ async function boot(){
         try{if(operation==='edit'){editingAutomation=item;$('automation-name').value=item.name;$('automation-trigger').value=item.trigger.type;
           automationEventOptions(item.trigger.type,item.trigger.event||item.trigger.state||'');$('automation-time').value=item.trigger.daily_at||'';
           if(item.trigger.provider)$('automation-provider-event').value=item.trigger.provider+':'+item.trigger.event;
-          $('automation-importance').value=item.conditions.importance||'';$('automation-action').value=item.action.type;
+          $('automation-importance').value=item.conditions.importance||'';$('automation-minutes').value=item.conditions.minutes_before??'';$('automation-action').value=item.action.type;
           $('automation-title').value=item.action.title||'';$('automation-message').value=item.action.message||'';$('automation-enabled').checked=item.enabled;
           $('automation-save').textContent='Save automation';$('automation-cancel').hidden=false;automationTriggerFields();$('automation-form').scrollIntoView({block:'nearest'})}
         else{await api('/api/automations/'+operation,{id:item.id});await refreshAutomations()}}
@@ -245,14 +266,16 @@ async function boot(){
       const heading=document.createElement('strong');heading.textContent=note.title;const message=document.createElement('span');message.textContent=note.message;
       item.append(heading,message);notices.prepend(item)}
     const runs=$('automation-runs');runs.replaceChildren();for(const run of result.runs||[]){const item=document.createElement('div');item.className='automation-run';
-      item.textContent=`${new Date(run.finished_at*1000).toLocaleString()} · ${run.trigger_type} · ${run.status}`;runs.append(item)}
+      const source=run.result?.source;item.textContent=`${new Date(run.finished_at*1000).toLocaleString()} · ${run.trigger_type} · ${run.status}`+
+        (source?` · Source ${source.provider} ${source.source_id.slice(0,12)}`:'');runs.append(item)}
   }
   function resetAutomationForm(){editingAutomation=null;$('automation-form').reset();$('automation-save').textContent='Create automation';$('automation-cancel').hidden=true;automationTriggerFields()}
   $('automation-form').onsubmit=async event=>{event.preventDefault();const name=$('automation-name').value.trim(),type=$('automation-trigger').value;
     let trigger={type};if(type==='TIME')trigger.daily_at=$('automation-time').value;
     else if(type==='EVENT'||type==='STATE')trigger[type==='STATE'?'state':'event']=$('automation-event').value;
     else{const [provider,eventName]=$('automation-provider-event').value.split(':');trigger={type,provider,event:eventName}}
-    const conditions=$('automation-importance').value?{importance:$('automation-importance').value}:{};
+    const conditions={};if($('automation-importance').value)conditions.importance=$('automation-importance').value;
+    if(type==='PROVIDER_EVENT'&&$('automation-provider-event').value.startsWith('CALENDAR:')&&$('automation-minutes').value!=='')conditions.minutes_before=Number($('automation-minutes').value);
     const actionType=$('automation-action').value,action={type:actionType};if(actionType==='LOCAL_NOTIFICATION'){
       action.title=$('automation-title').value.trim();action.message=$('automation-message').value.trim()}
     const rule={name,trigger,conditions,action,enabled:$('automation-enabled').checked};
@@ -260,6 +283,7 @@ async function boot(){
       resetAutomationForm();await refreshAutomations()}catch(error){showError(error)}};
   $('automation-cancel').onclick=resetAutomationForm;
   $('automation-run-due').onclick=async()=>{try{await api('/api/automations/run-due',{});await refreshAutomations()}catch(error){showError(error)}};
+  $('automation-refresh').onclick=()=>Promise.all([refreshAutomations(),refreshSettings()]).catch(showError);
   refreshAutomations().catch(()=>{$('automation-state').textContent='UNAVAILABLE'});
   function researchCard(card){
     let el=[...$('research-cards').children].find(x=>x.dataset.id===card.id);

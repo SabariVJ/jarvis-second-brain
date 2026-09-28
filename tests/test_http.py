@@ -18,7 +18,8 @@ class HTTPTests(unittest.TestCase):
         (notes/'voice.md').write_text('# Brand voice\nUse clear, warm language.',encoding='utf-8')
         (root/'holo.html').write_text('<title>HOLO</title>')
         (root/'ui').mkdir(); (root/'ui'/'app.js').write_text('/* safe */')
-        env=patch.dict(os.environ,{'JARVIS_DATA_DIR':str(root/'data'),'OPENAI_API_KEY':'','JARVIS_EMBEDDINGS':''})
+        env=patch.dict(os.environ,{'JARVIS_DATA_DIR':str(root/'data'),'OPENAI_API_KEY':'','JARVIS_EMBEDDINGS':'',
+            'JARVIS_GOOGLE_CLIENT_ID':'','JARVIS_GOOGLE_CLIENT_SECRET':'','JARVIS_GOOGLE_REFRESH_TOKEN':''})
         env.start(); self.addCleanup(env.stop)
         runtime=Runtime(root,lambda:str(notes))
         for name,value in [('ROOT',str(root)),('RUNTIME',runtime),('notes_dir',lambda:str(notes))]:
@@ -49,12 +50,20 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request('/api/jarvis/chat',{'message':'no session'})[0],400)
         settings=json.loads(self.request('/api/settings/status')[1]);names={item['name'] for item in settings['integrations']}
         self.assertTrue({'OPENAI / ASTRA','SECOND BRAIN','VOICE','WAKE WORD','SCREEN','CAMERA','FOCUS LOCK','GMAIL',
-            'CALENDAR','TELEGRAM','WINDOWS TOOLS','AUTOMATIONS'}.issubset(names))
+            'CALENDAR','TELEGRAM','WINDOWS TOOLS','AUTOMATIONS','GMAIL EVENT SOURCE','CALENDAR EVENT SOURCE'}.issubset(names))
         self.assertTrue(settings['diagnostics']['database_healthy'])
         self.assertNotIn('OPENAI_API_KEY',json.dumps(settings));self.assertNotIn('TELEGRAM_BOT_TOKEN',json.dumps(settings))
 
     def test_automation_api_creates_edits_disables_and_audits_local_rule(self):
-        self.assertEqual(json.loads(self.request('/api/automations')[1])['items'],[])
+        initial=json.loads(self.request('/api/automations')[1])
+        self.assertEqual(initial['items'],[])
+        self.assertEqual(initial['provider_sources']['GMAIL']['status'],'DISABLED')
+        status,raw=self.request('/api/automations/provider-source',{'provider':'GMAIL','enabled':True})
+        self.assertEqual(status,200);source=json.loads(raw)['source']
+        self.assertTrue(source['enabled']);self.assertEqual(source['status'],'NOT CONNECTED')
+        self.assertEqual(self.request('/api/automations/provider-source',{'provider':'UNKNOWN','enabled':True})[0],400)
+        self.assertEqual(self.request('/api/automations/provider-source',{'provider':'GMAIL','enabled':False})[0],200)
+        self.assertEqual(self.request('/api/automations/provider-source',{'provider':'CALENDAR','enabled':'yes'})[0],400)
         rule={'name':'Build finished','trigger':{'type':'EVENT','event':'BUILD_FINISHED'},'conditions':{},
             'action':{'type':'LOCAL_NOTIFICATION','title':'Build finished','message':'Review the local build.'}}
         status,raw=self.request('/api/automations',rule);self.assertEqual(status,200)

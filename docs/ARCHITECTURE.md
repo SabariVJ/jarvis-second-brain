@@ -320,18 +320,31 @@ status. TIME rules run once daily at the machine's local `HH:MM`; the server's
 15-second worker checks due rules only while the app is running. Rules are
 disabled on creation and can be edited, enabled, disabled or removed in the
 Local Automations panel. Trigger classes cover TIME, EVENT, STATE and
-PROVIDER_EVENT. Focus controls emit local state and lifecycle events; provider
-adapters can call the constrained provider-event hook when configured.
+PROVIDER_EVENT. Focus controls emit local state and lifecycle events. Gmail
+IMPORTANT_EMAIL and Calendar CALENDAR_APPROACHING sources use the constrained
+provider-event hook only after each source is explicitly enabled and a matching
+rule is enabled. The existing scheduler checks configured sources at most
+every five minutes; the first successful check establishes a quiet baseline.
+Disabled or unconfigured sources make no provider request. Calendar lead time
+defaults to 60 minutes and may be set from 0 to 1440 minutes.
 
 Actions are restricted to a transient local notification, preparing a morning
 briefing, or checking local Focus state. Nothing in the automation registry
 can send email or Telegram, mutate Calendar, invoke a tool, grant an approval,
-or run shell commands. Provider event payloads are reduced to allowlisted
-fields before matching and are never written to the audit log. Audit results
-store only status and safe metadata. Notifications remain in memory until the
-server restarts; rule definitions and run history are local persistent data.
-Gmail/Calendar event polling is not started automatically; OAuth and a
-user-authorized event source are still needed for live provider events.
+or run shell commands. Raw provider payloads are reduced to allowlisted fields
+before matching and never written to the audit log. Audit results store only
+status and safe source metadata (provider, event and opaque identity hash).
+Notifications remain in memory until the server restarts; rule definitions
+and run history are local persistent data.
+Gmail/Calendar event polling is never started automatically; local source
+enablement plus OAuth are required. The private database stores bounded source
+status and SHA-256 event-identity receipts (90 days, at most 5,000 rows), not
+raw provider payloads. Gmail processing uses only recent Important-search IDs,
+without fetching message details. Calendar processing uses event ID/start time
+and does not persist event titles or details. These receipts suppress repeated
+event rules across polling cycles and normal restarts; errors remain generic and
+do not stop local Jarvis operation. Live provider behavior remains a separate
+user acceptance check.
 
 ## Phase 31: final acceptance and hardening
 

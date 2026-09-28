@@ -26,6 +26,7 @@ from jarvis.approvals import ApprovalEngine
 from jarvis.cards import VisualCards
 from jarvis.windows import WindowsTools
 from jarvis.automations import AutomationEngine
+from jarvis.provider_events import ProviderEventSources
 
 class Runtime:
     def __init__(self, root, notes_dir):
@@ -46,6 +47,7 @@ class Runtime:
         self.calendar = CalendarAdapter()
         self.briefing = MorningBriefing(self.database,self.gmail,self.calendar,self.focus)
         self.automations = AutomationEngine(self.database,self.briefing,self.focus)
+        self.provider_events = ProviderEventSources(self.database,self.gmail,self.calendar,self.automations)
         self.long_term_memory=LongTermMemory(self.database)
         data_dir=Path(os.environ.get('JARVIS_DATA_DIR', str(Path(root)/'data')))
         self.documents=DocumentAutomation(self.database,data_dir)
@@ -187,6 +189,7 @@ class Runtime:
         gmail=self.gmail.status();calendar=self.calendar.status();telegram=self.telegram.status();focus=self.focus.status()
         active_windows=all(self.orchestrator.tools.tools[name].available for name in
             ('open_application','open_file','open_folder','open_url','get_active_application','get_active_window','set_volume'))
+        provider_sources=self.provider_events.status()
         integrations=[
             {'name':'OPENAI / ASTRA','status':'CONNECTED' if self.brain.enabled else 'ACTION REQUIRED',
              'detail':self.brain.model if self.brain.enabled else 'Configure an API key locally for live Astra.'},
@@ -207,6 +210,12 @@ class Runtime:
             {'name':'WINDOWS TOOLS','status':'CONNECTED' if active_windows else 'ACTION REQUIRED',
              'detail':'Allowlisted app/file/browser actions, read-only foreground checks and approved master-volume control; screen capture uses the explicit browser picker; no shell tool is available.' if active_windows else 'Structured Windows controls are unavailable on this platform; no shell tool is available.'},
             {'name':'AUTOMATIONS','status':'DISABLED','detail':'Automations are off until you explicitly enable an individual rule.'},
+            {'name':'GMAIL EVENT SOURCE','status':provider_sources['GMAIL']['status'],
+             'detail':('Read-only important-mail polling; '+('enabled' if provider_sources['GMAIL']['enabled'] else 'disabled')+
+                       f"; {provider_sources['GMAIL']['poll_interval_seconds']} second interval; message content is not retained.")},
+            {'name':'CALENDAR EVENT SOURCE','status':provider_sources['CALENDAR']['status'],
+             'detail':('Read-only upcoming-event polling; '+('enabled' if provider_sources['CALENDAR']['enabled'] else 'disabled')+
+                       f"; {provider_sources['CALENDAR']['poll_interval_seconds']} second interval; event content is not retained.")},
         ]
         return {'integrations':integrations,'diagnostics':{'provider_available':self.brain.enabled,
             'database_healthy':database_ok,'indexing_status':'READY' if not self.index_result.get('errors') else 'PARTIAL',
@@ -277,7 +286,8 @@ class Runtime:
         if method == 'GET' and path == '/api/health':
             return {**self.health(),'screen_vision_enabled':self.vision.enabled}
         if method == 'GET' and path == '/api/settings/status':return self.settings_status()
-        if method == 'GET' and path == '/api/automations':return self.automations.list()
+        if method == 'GET' and path == '/api/automations':
+            result=self.automations.list();result['provider_sources']=self.provider_events.status();return result
         if method == 'GET' and path == '/api/tools':
             return {'tools':self.orchestrator.tools.definitions(),'shell_available':False}
         if method == 'GET' and path == '/api/cards':return self.cards.list(query.get('all',[''])[0]=='1')
@@ -306,6 +316,8 @@ class Runtime:
             return {'automation':self.automations.set_enabled(data.get('id'),path.endswith('/enable'))}
         if method == 'POST' and path == '/api/automations/delete':return self.automations.delete(data.get('id'))
         if method == 'POST' and path == '/api/automations/run-due':return self.automations.run_due()
+        if method == 'POST' and path == '/api/automations/provider-source':
+            return {'source':self.provider_events.configure(data.get('provider'),data.get('enabled'))}
         if method == 'POST' and path == '/api/tools/execute':
             return self._execute_tool(data.get('name'),data.get('arguments',{}))
         if method == 'GET' and path == '/api/focus':

@@ -1,4 +1,4 @@
-# JARVIS build progress — continuation through Phase 32a, 2026-09-28
+# JARVIS build progress — continuation through Phase 32b, 2026-09-28
 
 Branch: `jarvis-second-brain`.
 Phase 22–31 run start SHA: `169d50e08a14823622d2a586035eb688054944ef`.
@@ -42,7 +42,7 @@ acceptance remain pending. This is not a full video-parity claim.
 | 27 Safe Windows Computer Control | Complete safe adapter; live Windows acceptance pending | windows.py, core/runtime.py, core/orchestrator.py, tools.py | 103 Python tests; allowlisted app/file/public URL, path traversal and script guard, foreground mocks, volume mock, typed approvals and natural-language browser flow; probe 26/26; camera-free launch | SHA in `../FINAL_HANDOFF.md` | Physical Windows active-window/audio test; screenshot remains one-shot browser chooser |
 | 28 Offline / Degraded Mode | Complete | tests/test_degraded_mode.py, core/runtime.py, docs/SETUP.md | 105 Python tests; network-blocked startup, Astra/embedding/vision/Gmail/Calendar/Telegram disabled, local note search + graph and clear status; camera-free browser and launch validation | SHA in `../FINAL_HANDOFF.md` | None |
 | 29 Privacy Hardening | Complete foundation | security.py, ui/jarvis.js/css, Telegram, vision, Context | 106 Python tests; secret formats redacted, global mute stops mocked active recognition and blocks voice/wake; transient audio/image flows and visible indicators reviewed; browser acceptance zero page errors, probe 26/26 | a13abdb | Physical microphone release test remains pending |
-| 30 Automation Engine | Complete, provider event sources require their own authorized adapters | automations.py, memory/database.py, core/runtime.py, server.py, ui/jarvis.js/css | 113 Python tests; daily schedule, local event/state/provider hooks, audit, CRUD, disabled-by-default lifecycle; prompt-injection/external-action rejection; launch.cmd camera-free; browser acceptance zero page errors; original probe 26/26 | recorded in `../FINAL_HANDOFF.md` | Gmail/Calendar provider event subscriptions are not polled; physical/live integration acceptance remains pending |
+| 30 Automation Engine | Complete, including Phase 32b opt-in provider sources; live source acceptance pending | automations.py, provider_events.py, memory/database.py, integrations, runtime.py, server.py, ui/jarvis.js/css | Provider-specific opt-in, five-minute bounded polling, quiet baseline, threshold rules, content-free dedupe receipts, safe status, mocks and browser controls | Phase 32b checkpoint below | Live Gmail/Calendar event firing remains pending |
 | 31 Full System Hardening + Video-Parity Acceptance | Complete written-spec acceptance; live devices/providers pending | security.py, automations.py, memory/long_term.py, tests | 116 Python tests; malicious note/PDF/email/provider content stays data, screen instructions remain untrusted, Telegram allowlist, path and approval expiry checks, shared secret detector; browser zero page errors; launch/simulation/camera-free; probe 26/26 | recorded in `../FINAL_HANDOFF.md` | Authorized live APIs and physical devices require user setup |
 
 ## Phase 19 continuation checkpoint
@@ -174,8 +174,35 @@ Docs-only checkpoint, committed on top of the unchanged Phase 31 code baseline
   unchanged: Telegram token/allowlist, optional OpenAI key, Gmail/Calendar
   OAuth, microphone/acoustic echo, live screen vision, physical webcam, and
   live Windows foreground monitoring.
-- Exact next task: **await the user's live acceptance pass (or a Phase 32b
-  specification) before any further code change.**
+- At this checkpoint the next task was to await live acceptance or a Phase 32b
+  specification. The user supplied the Phase 32b request; that work is recorded
+  below.
+
+## Phase 32b checkpoint — Provider-event automation
+
+Phase 32b implements the requested Gmail `IMPORTANT_EMAIL` and Calendar
+`CALENDAR_APPROACHING` sources using the existing adapters, automation rules,
+runtime and scheduler. Each source is off by default and separately enabled in
+Local Automations. Polling is read-only, checks no more than every five minutes,
+and runs in the existing bounded background scheduler. A source remains inert
+when disconnected or when it has no enabled matching rule. Initial successful
+checks establish a quiet baseline; hashed event-identity receipts are bounded
+to 90 days and 5,000 rows. Raw email/calendar content is not persisted or used
+as permission authority. Source state is shown in Local Automations and
+Integrations / Settings.
+
+- Scope and threat boundaries: `docs/PHASE_32B_PROVIDER_EVENTS.md`.
+- Local configuration and baseline behavior: `docs/SETUP.md`.
+- Live event checks are documented separately in `docs/LIVE_ACCEPTANCE.md` and
+  remain pending until actually exercised with the user's Google account.
+- Phase 32b automated validation: **126 Python tests + 27 subtests passed**;
+  browser acceptance passed with probe 26/26, both props and zero page errors.
+  `launch.cmd` started camera-free/microphone-free local mode; `pip check`,
+  Python compilation, JavaScript syntax and `git diff --check` passed. No live
+  provider, hardware or Astra behavior is implied by mocked validation.
+- Next task: user-side Tier B/C live acceptance from the runbook for configured
+  accounts/devices. No additional implementation phase is defined by
+  `docs/MASTER_SPEC.md` after Phase 31; do not invent unrelated code work.
 
 ## Phase 31 final acceptance — 2026-09-28
 

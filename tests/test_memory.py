@@ -56,6 +56,18 @@ class MemoryTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError), self.db.connect() as db:
             db.execute("INSERT INTO memories(id,category,content,source_id,created,confidence) VALUES ('m','FACT','unsupported','no-source',0,1)")
 
+    def test_phase_32b_additive_schema_migration_preserves_v6_data(self):
+        import sqlite3
+        path=Path(self.tmp.name)/'v6.sqlite'
+        conn=sqlite3.connect(path);conn.execute('CREATE TABLE preserved(value TEXT)')
+        conn.execute("INSERT INTO preserved VALUES('keep')");conn.execute('PRAGMA user_version=6');conn.commit();conn.close()
+        migrated=Database(path)
+        with migrated.connect() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],7)
+            self.assertEqual(db.execute('SELECT value FROM preserved').fetchone()[0],'keep')
+            self.assertIsNotNone(db.execute("SELECT name FROM sqlite_master WHERE name='provider_event_sources'").fetchone())
+            self.assertIsNotNone(db.execute("SELECT name FROM sqlite_master WHERE name='provider_event_receipts'").fetchone())
+
     def test_graph_bounded_and_focus_outside_initial_page(self):
         for i in range(12): (self.root/f'{i}.md').write_text(f'# Topic {i}\n[[Shared]]')
         self.ingest.scan(self.root)

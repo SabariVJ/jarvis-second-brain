@@ -72,6 +72,24 @@ class GmailAdapter:
         return {'messages':messages,'result_size_estimate':response.get('resultSizeEstimate',len(messages)),
             'next_page_token':response.get('nextPageToken')}
 
+    def automation_candidates(self, limit=50):
+        """Return only opaque IDs for recent Gmail-important inbox messages.
+
+        Message bodies, snippets and headers are intentionally excluded from
+        the provider-event path. Gmail's query filters the bounded first page
+        to recent Important inbox IDs; no per-message read is needed.
+        """
+        if not 1 <= int(limit) <= 50:
+            raise ValueError('Gmail automation page size must be 1–50')
+        response = self._request('GET', 'messages',
+            {'q': 'in:inbox is:important newer_than:90d', 'maxResults': int(limit)})
+        candidates = []
+        for ref in response.get('messages', [])[:int(limit)]:
+            if not isinstance(ref, dict) or not isinstance(ref.get('id'), str) or not ref['id']:
+                continue
+            candidates.append({'id': ref['id'], 'importance': 'IMPORTANT'})
+        return candidates
+
     def thread(self,thread_id):
         if not isinstance(thread_id,str) or not thread_id or len(thread_id)>200:raise ValueError('Gmail thread ID is invalid')
         result=self._request('GET','threads/'+quote(thread_id,safe=''),{'format':'full'})

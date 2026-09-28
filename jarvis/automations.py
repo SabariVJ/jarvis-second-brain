@@ -1,5 +1,6 @@
 """Bounded local-only automation rules with persistent, redacted audit history."""
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 import re
 import secrets
@@ -187,15 +188,22 @@ class AutomationEngine:
 
     def _matches(self, rule, context):
         for key, wanted in rule['conditions'].items():
+            if (rule['trigger'].get('provider') == 'CALENDAR' and key == 'minutes_before'):
+                actual = context.get(key)
+                if not isinstance(actual, int) or isinstance(actual, bool) or actual < 0 or actual > wanted:
+                    return False
+                continue
             if context.get(key) != wanted:
                 return False
         return True
 
-    def _execute(self, rule):
+    def _execute(self, rule, provenance=None):
         action = rule['action']
         if action['type'] == 'LOCAL_NOTIFICATION':
             notification = {'automation_id': rule['id'], 'title': action['title'], 'message': action['message'],
                             'created_at': self._now().timestamp()}
+            if provenance:
+                notification['source'] = provenance
         elif action['type'] == 'MORNING_BRIEFING':
             result = self.briefing.run()
             notification = {'automation_id': rule['id'], 'title': 'Morning briefing is ready',
@@ -211,18 +219,20 @@ class AutomationEngine:
         self._notifications = self._notifications[-20:]
         return {'status': 'SUCCEEDED', 'notification_created': True}
 
-    def _run(self, row, trigger_type, context=None):
+    def _run(self, row, trigger_type, context=None, provenance=None):
         rule = self._record(row)
         if not rule['enabled'] or not self._matches(rule, context or {}):
             return None
         now = self._now().timestamp()
         run_status, result = 'SUCCEEDED', {}
         try:
-            result = self._execute(rule)
+            result = self._execute(rule, provenance)
             run_status = result.pop('status', 'SUCCEEDED')
         except Exception:
             run_status, result = 'FAILED', {'error': 'Local action failed'}
         next_run = self._next_daily(rule['trigger']['daily_at']) if trigger_type == 'TIME' and rule['trigger']['type'] == 'TIME' else None
+        if provenance:
+            result['source'] = provenance
         with self.database.connect() as db:
             db.execute('UPDATE automations SET last_run=?,next_run=? WHERE id=?', (now, next_run, rule['id']))
             db.execute('''INSERT INTO automation_runs(automation_id,started_at,finished_at,trigger_type,status,result_json)
@@ -247,11 +257,55 @@ class AutomationEngine:
             raise ValueError('Unsupported local state')
         return self._emit('STATE', state, context or {})
 
-    def emit_provider_event(self, provider, event, context=None):
+    def provider_rules(self, provider, event):
+        if provider not in PROVIDERS or (provider, event) not in (
+                ('GMAIL', 'IMPORTANT_EMAIL'), ('CALENDAR', 'CALENDAR_APPROACHING')):
+            raise ValueError('Unsupported provider event')
+        with self.database.connect() as db:
+            rows = db.execute("SELECT * FROM automations WHERE enabled=1 ORDER BY created_at LIMIT 200").fetchall()
+        return [self._record(row) for row in rows
+                if (trigger := json.loads(row['trigger_json'])).get('type') == 'PROVIDER_EVENT'
+                and trigger.get('provider') == provider and trigger.get('event') == event]
+
+    def _provider_source_key(self, provider, event, source_reference):
+        if (provider, event) not in (('GMAIL', 'IMPORTANT_EMAIL'), ('CALENDAR', 'CALENDAR_APPROACHING')):
+            raise ValueError('Provider event does not match its source')
+        if (not isinstance(source_reference, str) or not source_reference or len(source_reference) > 500
+                or any(ord(char) < 32 for char in source_reference) or contains_secret(source_reference)):
+            raise ValueError('Provider event source reference is invalid')
+        return hashlib.sha256(f'{provider}\0{event}\0{source_reference}'.encode('utf-8')).hexdigest()
+
+    def record_provider_event_seen(self, provider, event, source_reference):
+        """Persist a content-free baseline/dedupe receipt without firing rules."""
+        source_key = self._provider_source_key(provider, event, source_reference)
+        now = self._now().timestamp()
+        with self.database.connect() as db:
+            db.execute('''INSERT OR IGNORE INTO provider_event_receipts
+                (provider,event,source_key,automation_id,seen_at) VALUES(?,?,?,?,?)''',
+                (provider, event, source_key, '*', now))
+            self._prune_provider_receipts(db, now)
+        return source_key
+
+    @staticmethod
+    def _prune_provider_receipts(db, now):
+        db.execute('DELETE FROM provider_event_receipts WHERE seen_at<?', (now - 90 * 86400,))
+        db.execute('''DELETE FROM provider_event_receipts WHERE rowid NOT IN
+            (SELECT rowid FROM provider_event_receipts ORDER BY seen_at DESC LIMIT 5000)''')
+
+    def prune_provider_event_receipts(self, now=None):
+        current = self._now().timestamp() if now is None else float(now)
+        with self.database.connect() as db:
+            self._prune_provider_receipts(db, current)
+
+    def emit_provider_event(self, provider, event, context=None, source_reference=None, automation_ids=None):
         if provider not in PROVIDERS or event not in PROVIDER_EVENTS:
             raise ValueError('Unsupported provider event')
         if (provider, event) not in (('GMAIL', 'IMPORTANT_EMAIL'), ('CALENDAR', 'CALENDAR_APPROACHING')):
             raise ValueError('Provider event does not match its source')
+        if automation_ids is not None and (not isinstance(automation_ids, (list, tuple))
+                or len(automation_ids) > 200 or any(not isinstance(value, str) or not re.fullmatch(r'auto_[0-9a-f]{24}', value)
+                                                       for value in automation_ids)):
+            raise ValueError('Provider event rule selection is invalid')
         safe_context = {}
         if isinstance(context, dict):
             importance = context.get('importance')
@@ -260,7 +314,36 @@ class AutomationEngine:
             minutes = context.get('minutes_before')
             if isinstance(minutes, int) and not isinstance(minutes, bool) and 0 <= minutes <= 1440:
                 safe_context['minutes_before'] = minutes
-        return self._emit('PROVIDER_EVENT', event, safe_context, provider)
+        if source_reference is None:
+            return self._emit('PROVIDER_EVENT', event, safe_context, provider)
+
+        source_key = self._provider_source_key(provider, event, source_reference)
+        provenance = {'provider': provider, 'event': event, 'source_id': source_key}
+        now = self._now().timestamp()
+        with self.database.connect() as db:
+            if db.execute('''SELECT 1 FROM provider_event_receipts
+                    WHERE provider=? AND event=? AND source_key=? AND automation_id='*' ''',
+                    (provider, event, source_key)).fetchone():
+                return {'runs': [], 'duplicate': True}
+            rows = db.execute("SELECT * FROM automations WHERE enabled=1 ORDER BY created_at LIMIT 200").fetchall()
+            claimed = []
+            selected = set(automation_ids) if automation_ids is not None else None
+            for row in rows:
+                trigger = json.loads(row['trigger_json'])
+                if (trigger.get('type') != 'PROVIDER_EVENT' or trigger.get('provider') != provider
+                        or trigger.get('event') != event or (selected is not None and row['id'] not in selected)):
+                    continue
+                inserted = db.execute('''INSERT OR IGNORE INTO provider_event_receipts
+                    (provider,event,source_key,automation_id,seen_at) VALUES(?,?,?,?,?)''',
+                    (provider, event, source_key, row['id'], now))
+                if inserted.rowcount:
+                    claimed.append(row)
+            db.execute('''INSERT OR IGNORE INTO provider_event_receipts
+                (provider,event,source_key,automation_id,seen_at) VALUES(?,?,?,?,?)''',
+                (provider, event, source_key, '*', now))
+            self._prune_provider_receipts(db, now)
+        return {'runs': [result for row in claimed
+                         if (result := self._run(row, 'PROVIDER_EVENT', safe_context, provenance)) is not None]}
 
     def _emit(self, kind, name, context, provider=None):
         with self.database.connect() as db:
